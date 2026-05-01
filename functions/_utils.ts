@@ -1,14 +1,68 @@
 // Functions 公用工具：鉴权、校验、KV 键、JSON 响应
 import type { Env, FileExt } from './_types'
 
-// 校验 Bearer Token；通过返回 null，否则返回 401 Response
-export function requireAuth(request: Request, env: Env): Response | null {
-  const auth = request.headers.get('Authorization') ?? ''
-  const expected = `Bearer ${env.ADMIN_TOKEN}`
-  if (!env.ADMIN_TOKEN || auth !== expected) {
-    return jsonResponse({ error: '未授权' }, 401)
+const ADMIN_TOKEN_HASH_KEY = 'settings:admin_token_sha256'
+const MIN_ADMIN_TOKEN_LENGTH = 8
+
+async function sha256Hex(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value)
+  const hash = await crypto.subtle.digest('SHA-256', bytes)
+  return [...new Uint8Array(hash)]
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+function equalText(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i += 1) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
   }
-  return null
+  return diff === 0
+}
+
+export async function isAdminSetupRequired(env: Env): Promise<boolean> {
+  if (env.ADMIN_TOKEN) return false
+  return !(await env.DATA_KV.get(ADMIN_TOKEN_HASH_KEY))
+}
+
+export async function setupAdminToken(
+  env: Env,
+  token: unknown,
+): Promise<Response> {
+  if (env.ADMIN_TOKEN) {
+    return jsonResponse({ error: '已通过环境变量配置管理员密码' }, 409)
+  }
+  if (typeof token !== 'string' || token.trim().length < MIN_ADMIN_TOKEN_LENGTH) {
+    return jsonResponse({ error: '管理员密码至少需要 8 位' }, 400)
+  }
+  if (!(await isAdminSetupRequired(env))) {
+    return jsonResponse({ error: '管理员密码已设置' }, 409)
+  }
+  await env.DATA_KV.put(ADMIN_TOKEN_HASH_KEY, await sha256Hex(token.trim()))
+  return jsonResponse({ ok: true })
+}
+
+// 校验 Bearer Token；通过返回 null，否则返回 401 Response
+export async function requireAuth(
+  request: Request,
+  env: Env,
+): Promise<Response | null> {
+  const auth = request.headers.get('Authorization') ?? ''
+  const token = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length) : ''
+  if (env.ADMIN_TOKEN) {
+    return auth === `Bearer ${env.ADMIN_TOKEN}`
+      ? null
+      : jsonResponse({ error: '未授权' }, 401)
+  }
+  const storedHash = await env.DATA_KV.get(ADMIN_TOKEN_HASH_KEY)
+  if (!storedHash) {
+    return jsonResponse({ error: '需要先设置管理员密码', setupRequired: true }, 401)
+  }
+  const tokenHash = token ? await sha256Hex(token) : ''
+  return equalText(tokenHash, storedHash)
+    ? null
+    : jsonResponse({ error: '未授权' }, 401)
 }
 
 // 项目 ID：必须以小写字母或数字开头，仅允许小写字母、数字、下划线、连字符；长度 1~32

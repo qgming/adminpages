@@ -21,10 +21,12 @@ import {
   fileKeyPrefix,
   isValidProjectId,
   isValidProjectName,
+  isAdminSetupRequired,
   jsonResponse,
   parseFilename,
   projectKey,
   requireAuth,
+  setupAdminToken,
 } from '../_utils'
 
 // 取出 [[route]] 的所有段
@@ -237,14 +239,26 @@ async function deleteFile(
 
 export const onRequest: PagesFunction<Env> = async (ctx) => {
   const { request, env, params } = ctx
-
-  // 全部接口都需要鉴权
-  const unauthorized = requireAuth(request, env)
-  if (unauthorized) return unauthorized
-
   const segments = getSegments(params.route)
   const method = request.method.toUpperCase()
   const [resource, idSegment] = segments
+
+  if (resource === 'auth-status' && segments.length === 1 && method === 'GET') {
+    return jsonResponse({ setupRequired: await isAdminSetupRequired(env) })
+  }
+
+  if (resource === 'setup' && segments.length === 1 && method === 'POST') {
+    let body: { token?: unknown }
+    try {
+      body = (await request.json()) as { token?: unknown }
+    } catch {
+      return jsonResponse({ error: '请求体不是合法 JSON' }, 400)
+    }
+    return setupAdminToken(env, body.token)
+  }
+
+  const unauthorized = await requireAuth(request, env)
+  if (unauthorized) return unauthorized
 
   if (resource === 'projects') {
     if (segments.length === 1 && method === 'GET') {

@@ -9,8 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit && tsc -p functions/tsconfig.json --noEmit",
-    "pages:dev": "wrangler pages dev dist --kv=DATA_KV",
-    "deploy": "wrangler pages deploy dist --project-name=adminpages"
+    "pages:dev": "wrangler pages dev dist --kv=DATA_KV"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.8",
@@ -43,6 +42,6 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.2",
     "vite": "^8.0.10",
-    "wrangler": "^3.80.0"
+    "wrangler": "^4.87.0"
   }
 }

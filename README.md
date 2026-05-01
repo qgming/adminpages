@@ -1,15 +1,16 @@
 # 菟丝动态文件托管
 
-基于 React、TypeScript、Vite、Tailwind CSS 和 Cloudflare Pages Functions 的轻量文件托管后台。管理员可以创建项目，并在项目下维护 JSON、Markdown、HTML 文件；文件会保存到 Cloudflare Workers KV，并通过固定公开 URL 访问。
+基于 React、TypeScript、Vite、Tailwind CSS 和 Cloudflare Pages Functions 的轻量文件托管后台。管理员可以创建项目，并在项目下维护 JSON、Markdown、HTML 文件；文件内容保存到 Cloudflare Workers KV，通过固定公开 URL 访问。
 
 ## 功能
 
 - 管理后台：`/admin`
 - 公开读取：`/<projectId>/<filename>`
 - 支持文件类型：`.json`、`.md`、`.html`
-- 管理接口使用 `ADMIN_TOKEN` 做 Bearer Token 鉴权
-- 文件内容持久化到 KV 绑定 `DATA_KV`
-- JSON 文件保存时会自动校验并格式化
+- KV 绑定名固定为 `DATA_KV`
+- 首次访问后台时设置管理员密码，密码哈希后保存到 KV
+- 可选使用 `ADMIN_TOKEN` Secret 覆盖 KV 密码模式
+- JSON 文件保存时自动校验并格式化
 
 ## 技术栈
 
@@ -21,27 +22,24 @@
 - Cloudflare Pages Functions
 - Cloudflare Workers KV
 
-## 目录结构
+## 仓库配置
 
-```txt
-.
-├── functions/
-│   ├── _types.ts
-│   ├── _utils.ts
-│   ├── [projectId]/[filename].ts
-│   └── admin-api/[[route]].ts
-├── public/
-│   └── _routes.json
-├── src/
-│   ├── components/
-│   ├── pages/
-│   ├── api.ts
-│   ├── App.tsx
-│   └── main.tsx
-├── .dev.vars.example
-├── package.json
-└── vite.config.ts
+Cloudflare 配置集中在 `wrangler.jsonc`：
+
+```jsonc
+{
+  "name": "your-pages-project",
+  "compatibility_date": "2026-05-01",
+  "pages_build_output_dir": "dist",
+  "kv_namespaces": [
+    {
+      "binding": "DATA_KV"
+    }
+  ]
+}
 ```
+
+这意味着输出目录和 KV 绑定名已在仓库中固定。`name` 是 Cloudflare Pages 项目名示例，可按你的实际项目修改。代码读取的 KV 绑定名固定为 `DATA_KV`。
 
 ## 本地开发
 
@@ -57,13 +55,13 @@ npm install
 npm run dev
 ```
 
-默认访问：
+访问：
 
 ```txt
 http://localhost:5173
 ```
 
-常用检查命令：
+常用检查：
 
 ```bash
 npm run lint
@@ -73,127 +71,85 @@ npm run build
 
 ## 本地联调 Pages Functions 和 KV
 
-复制本地环境变量模板：
-
-```bash
-cp .dev.vars.example .dev.vars
-```
-
-修改 `.dev.vars`：
-
-```txt
-ADMIN_TOKEN=your-local-secret-here
-```
-
-先构建前端：
+构建前端：
 
 ```bash
 npm run build
 ```
 
-使用 Wrangler 启动 Pages 本地环境，并模拟 KV 绑定：
+启动 Pages 本地环境：
 
 ```bash
 npm run pages:dev
 ```
 
-访问后台：
+访问：
 
 ```txt
 http://localhost:8788/admin
 ```
 
-登录时输入 `.dev.vars` 里的 `ADMIN_TOKEN`。
+默认无需配置本地环境变量。首次打开 `/admin` 时设置管理员密码，密码会保存到本地模拟 KV。
 
 ## 部署到 Cloudflare Pages
 
-### 1. 创建 KV Namespace
-
-进入 Cloudflare Dashboard：
+推荐使用 Pages Git 集成：
 
 ```txt
-Workers & Pages → KV → Create namespace
+Workers & Pages → Create application → Pages → Connect to Git
 ```
 
-名称可以自定义，例如：
-
-```txt
-tusi-data
-```
-
-### 2. 创建 Pages 项目
-
-进入：
-
-```txt
-Workers & Pages → Create application → Pages
-```
-
-连接 Git 仓库后填写构建配置：
+构建配置：
 
 ```txt
 Build command: npm run build
 Build output directory: dist
-Deploy command: npm run deploy
 Root directory: 项目根目录
+Deploy command: 留空
 ```
 
-`npm run deploy` 会执行：
+Pages Git 集成会在构建成功后自动发布 `dist`，无需填写 `wrangler deploy` 或 `wrangler pages deploy`。
 
-```bash
-wrangler pages deploy dist --project-name=adminpages
-```
+如果控制台强制要求 Deploy command，说明当前入口大概率是 Workers 项目或自定义部署流程。请重新从 `Pages → Connect to Git` 创建项目。
 
-Cloudflare Pages 项目名需要是 `adminpages`。如果你的 Pages 项目使用了其他名称，请同步修改 `package.json` 中的 `deploy` 脚本。
+## KV 配置
 
-### 3. 绑定 KV
+`wrangler.jsonc` 已声明 `DATA_KV` 绑定。使用新版 Wrangler/Pages 配置时，Cloudflare 会按配置识别该绑定。
 
-进入 Pages 项目设置：
+如果控制台仍要求手动绑定，按下面配置一次：
 
 ```txt
 Settings → Bindings → Add → KV namespace
-```
-
-填写：
-
-```txt
 Variable name: DATA_KV
-KV namespace: 选择刚创建的 KV
+KV namespace: 选择你创建的 KV
 ```
 
-`DATA_KV` 必须保持这个名字，后端函数会通过 `context.env.DATA_KV` 读取。
+KV namespace 的名称由你自己决定，变量名必须是 `DATA_KV`。Cloudflare 控制台里显示的是 KV 名称，代码里读取的是绑定变量名。
 
-### 4. 设置后台登录密码
+## 后台密码
 
-进入：
+默认模式无需在部署前配置密码：
+
+1. 部署完成后打开 `/admin`
+2. 第一次访问会显示“设置管理员密码”
+3. 输入至少 8 位密码
+4. 密码会以 SHA-256 哈希写入 KV
+5. 后续使用这个密码登录
+
+可选固定密码模式：
 
 ```txt
 Settings → Variables and Secrets → Add
-```
-
-添加：
-
-```txt
 Variable name: ADMIN_TOKEN
 Value: 一串高强度密码
 ```
 
-建议作为 Secret 保存。`ADMIN_TOKEN` 是访问 `/admin` 时输入的后台登录密码。
-
-### 5. 重新部署
-
-添加 KV 绑定或环境变量后，需要重新部署一次。可以在 Pages 项目的部署页面点击重新部署，也可以 push 新提交触发自动部署。
-
-部署完成后访问：
-
-```txt
-https://<your-project>.pages.dev/admin
-```
+设置 `ADMIN_TOKEN` 后，系统优先使用该 Secret，不再使用 KV 中的首次设置密码。
 
 ## 使用流程
 
 1. 打开 `/admin`
-2. 输入 `ADMIN_TOKEN`
+2. 首次访问设置管理员密码，之后直接输入密码登录
 3. 点击“新建项目”，填写项目 ID 和项目名称
 4. 进入项目详情页
 5. 选择文件类型，填写文件名和内容
@@ -213,6 +169,8 @@ https://<your-project>.pages.dev/admin
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
 | `GET` | `/<projectId>/<filename>` | 否 | 公开读取文件 |
+| `GET` | `/admin-api/auth-status` | 否 | 查询是否需要首次设置密码 |
+| `POST` | `/admin-api/setup` | 否 | 首次设置管理员密码 |
 | `GET` | `/admin-api/projects` | 是 | 获取项目列表 |
 | `POST` | `/admin-api/projects` | 是 | 创建项目 |
 | `DELETE` | `/admin-api/projects/<id>` | 是 | 删除项目及其文件 |
@@ -232,24 +190,18 @@ https://<your-project>.pages.dev/admin
 ## KV 数据结构
 
 ```txt
+settings:admin_token_sha256  → 管理员密码 SHA-256 哈希
 proj:<projectId>             → {"id":"blog","name":"博客","createdAt":...}
 file:<projectId>:<filename>  → 文件内容
 ```
 
 删除项目时会分页清理该项目下所有 `file:<projectId>:` 前缀的文件。
 
-## 安全配置
+## 安全说明
 
-- `ADMIN_TOKEN` 必须设置为高强度密码
-- `ADMIN_TOKEN` 放在 Cloudflare Variables and Secrets 中
-- `DATA_KV` 只保存项目和文件内容
+- 管理员密码至少 8 位
+- `ADMIN_TOKEN` 可选，建议作为 Secret 保存
 - 公开读取接口无需鉴权，避免存放私密文件
 - 项目 ID 仅允许小写字母、数字、下划线、连字符
 - 文件名主体仅允许字母、数字、下划线、连字符
-
-推荐生产配置：
-
-```txt
-ADMIN_TOKEN = 高强度后台密码
-DATA_KV     = Cloudflare KV namespace binding
-```
+- 首次部署后尽快打开 `/admin` 设置密码

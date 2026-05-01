@@ -36,5 +36,5 @@ export interface DeleteFileRequest {
 // Cloudflare Pages 环境绑定
 export interface Env {
   DATA_KV: KVNamespace
-  ADMIN_TOKEN: string
+  ADMIN_TOKEN?: string
 }

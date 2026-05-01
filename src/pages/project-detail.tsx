@@ -9,6 +9,7 @@ import {
   deleteFile,
   fetchPublicFile,
   getToken,
+  getAuthStatus,
   UnauthorizedError,
 } from '@/api'
 import { Button } from '@/components/ui/button'
@@ -35,14 +36,16 @@ export function ProjectDetailPage() {
   const [loading, setLoading] = useState(() => !!getToken())
   const [saving, setSaving] = useState(false)
   const [tokenOpen, setTokenOpen] = useState(() => !getToken())
+  const [setupRequired, setSetupRequired] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
   const [editing, setEditing] = useState<{
     item: FileItem
     content: string
   } | null>(null)
 
-  const handleUnauthorized = useCallback(() => {
-    const msg = 'Token 无效或已过期，请重新输入'
+  const handleUnauthorized = useCallback((setup = false) => {
+    const msg = setup ? '请先设置管理员密码' : 'Token 无效或已过期，请重新输入'
+    setSetupRequired(setup)
     setAuthError(msg)
     setTokenOpen(true)
     toast.error(msg)
@@ -57,7 +60,7 @@ export function ProjectDetailPage() {
       setItems(Array.isArray(items) ? items : [])
     } catch (e) {
       if (e instanceof UnauthorizedError) {
-        handleUnauthorized()
+        handleUnauthorized(e.setupRequired)
       } else {
         toast.error(`加载失败: ${(e as Error).message}`)
       }
@@ -73,6 +76,12 @@ export function ProjectDetailPage() {
       }, 0)
       return () => window.clearTimeout(timer)
     }
+    void getAuthStatus()
+      .then(({ setupRequired }) => {
+        setSetupRequired(setupRequired)
+        setTokenOpen(true)
+      })
+      .catch(() => setTokenOpen(true))
   }, [loadList])
 
   const handleSave = async (req: { filename: string; content: string }) => {
@@ -85,7 +94,7 @@ export function ProjectDetailPage() {
       await loadList()
     } catch (e) {
       if (e instanceof UnauthorizedError) {
-        handleUnauthorized()
+        handleUnauthorized(e.setupRequired)
       } else {
         toast.error(`保存失败: ${(e as Error).message}`)
       }
@@ -105,7 +114,7 @@ export function ProjectDetailPage() {
       await loadList()
     } catch (e) {
       if (e instanceof UnauthorizedError) {
-        handleUnauthorized()
+        handleUnauthorized(e.setupRequired)
       } else {
         toast.error(`删除失败: ${(e as Error).message}`)
       }
@@ -187,6 +196,7 @@ export function ProjectDetailPage() {
         open={tokenOpen}
         onOpenChange={setTokenOpen}
         onConfirm={loadList}
+        setupRequired={setupRequired}
         errorMessage={authError}
         onErrorDismiss={() => setAuthError(null)}
       />

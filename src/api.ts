@@ -23,9 +23,12 @@ export function clearToken(): void {
 
 // 401 时抛出此错误，调用方需清 token 并重新弹 token 框
 export class UnauthorizedError extends Error {
-  constructor() {
+  setupRequired: boolean
+
+  constructor(setupRequired = false) {
     super('未授权')
     this.name = 'UnauthorizedError'
+    this.setupRequired = setupRequired
   }
 }
 
@@ -38,10 +41,6 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   const res = await fetch(path, { ...init, headers })
-  if (res.status === 401) {
-    clearToken()
-    throw new UnauthorizedError()
-  }
   let data: unknown = null
   const text = await res.text()
   if (text) {
@@ -50,6 +49,15 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       data = text
     }
+  }
+  if (res.status === 401) {
+    const setupRequired =
+      !!data &&
+      typeof data === 'object' &&
+      'setupRequired' in data &&
+      Boolean((data as { setupRequired: unknown }).setupRequired)
+    clearToken()
+    throw new UnauthorizedError(setupRequired)
   }
   if (!res.ok) {
     const msg =
@@ -69,6 +77,19 @@ export function listProjects(): Promise<{ projects: Project[] }> {
       projects: Array.isArray(data?.projects) ? data.projects : [],
     }),
   )
+}
+
+export function getAuthStatus(): Promise<{ setupRequired: boolean }> {
+  return apiFetch<{ setupRequired: boolean }>('/admin-api/auth-status').then(
+    (data) => ({ setupRequired: !!data.setupRequired }),
+  )
+}
+
+export function setupAdminToken(token: string): Promise<{ ok: true }> {
+  return apiFetch<{ ok: true }>('/admin-api/setup', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  })
 }
 
 export function createProject(
