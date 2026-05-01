@@ -30,16 +30,11 @@ Cloudflare 配置集中在 `wrangler.jsonc`：
 {
   "name": "your-pages-project",
   "compatibility_date": "2026-05-01",
-  "pages_build_output_dir": "dist",
-  "kv_namespaces": [
-    {
-      "binding": "DATA_KV"
-    }
-  ]
+  "pages_build_output_dir": "dist"
 }
 ```
 
-这意味着输出目录和 KV 绑定名已在仓库中固定。`name` 是 Cloudflare Pages 项目名示例，可按你的实际项目修改。代码读取的 KV 绑定名固定为 `DATA_KV`。
+这意味着 Pages 输出目录已在仓库中固定。`name` 是 Cloudflare Pages 项目名示例，可按你的实际项目修改。代码读取的 KV 绑定名固定为 `DATA_KV`。
 
 ## 本地开发
 
@@ -114,9 +109,7 @@ Pages Git 集成会在构建成功后自动发布 `dist`，无需填写 `wrangle
 
 ## KV 配置
 
-`wrangler.jsonc` 已声明 `DATA_KV` 绑定。使用新版 Wrangler/Pages 配置时，Cloudflare 会按配置识别该绑定。
-
-如果控制台仍要求手动绑定，按下面配置一次：
+KV namespace 名称由你决定，部署后需要在 Pages 项目中绑定一次。绑定变量名必须是 `DATA_KV`。
 
 ```txt
 Settings → Bindings → Add → KV namespace
@@ -124,7 +117,7 @@ Variable name: DATA_KV
 KV namespace: 选择你创建的 KV
 ```
 
-KV namespace 的名称由你自己决定，变量名必须是 `DATA_KV`。Cloudflare 控制台里显示的是 KV 名称，代码里读取的是绑定变量名。
+Cloudflare 控制台里显示的是 KV 名称，代码里读取的是绑定变量名。KV 的真实 namespace ID 由 Cloudflare 管理，不能用显示名称写进 `wrangler.jsonc` 的 `id` 字段。
 
 ## 后台密码
 
