@@ -3,6 +3,8 @@ import type { Env, FileExt } from './_types'
 
 const ADMIN_TOKEN_HASH_KEY = 'settings:admin_token_sha256'
 const MIN_ADMIN_TOKEN_LENGTH = 8
+const KV_BINDING_ERROR =
+  'KV_BINDING 未绑定。请在 wrangler.jsonc 中填写真实 KV Namespace ID 后重新部署。'
 
 async function sha256Hex(value: string): Promise<string> {
   const bytes = new TextEncoder().encode(value)
@@ -23,7 +25,14 @@ function equalText(a: string, b: string): boolean {
 
 export async function isAdminSetupRequired(env: Env): Promise<boolean> {
   if (env.ADMIN_TOKEN) return false
+  if (!env.KV_BINDING) return true
   return !(await env.KV_BINDING.get(ADMIN_TOKEN_HASH_KEY))
+}
+
+export function requireKvBinding(env: Env): Response | null {
+  return env.KV_BINDING
+    ? null
+    : jsonResponse({ error: KV_BINDING_ERROR }, 500)
 }
 
 export async function setupAdminToken(
@@ -36,6 +45,8 @@ export async function setupAdminToken(
   if (typeof token !== 'string' || token.trim().length < MIN_ADMIN_TOKEN_LENGTH) {
     return jsonResponse({ error: '管理员密码至少需要 8 位' }, 400)
   }
+  const kvMissing = requireKvBinding(env)
+  if (kvMissing) return kvMissing
   if (!(await isAdminSetupRequired(env))) {
     return jsonResponse({ error: '管理员密码已设置' }, 409)
   }
@@ -55,6 +66,8 @@ export async function requireAuth(
       ? null
       : jsonResponse({ error: '未授权' }, 401)
   }
+  const kvMissing = requireKvBinding(env)
+  if (kvMissing) return kvMissing
   const storedHash = await env.KV_BINDING.get(ADMIN_TOKEN_HASH_KEY)
   if (!storedHash) {
     return jsonResponse({ error: '需要先设置管理员密码', setupRequired: true }, 401)

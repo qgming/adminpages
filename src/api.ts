@@ -7,18 +7,18 @@ import type {
   SaveFileRequest,
 } from '@/types'
 
-const TOKEN_KEY = 'adminToken'
+let adminToken: string | null = null
 
 export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY)
+  return adminToken
 }
 
 export function setToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token)
+  adminToken = token
 }
 
 export function clearToken(): void {
-  localStorage.removeItem(TOKEN_KEY)
+  adminToken = null
 }
 
 // 401 时抛出此错误，调用方需清 token 并重新弹 token 框

@@ -26,6 +26,7 @@ import {
   parseFilename,
   projectKey,
   requireAuth,
+  requireKvBinding,
   setupAdminToken,
 } from '../_utils'
 
@@ -244,6 +245,8 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
   const [resource, idSegment] = segments
 
   if (resource === 'auth-status' && segments.length === 1 && method === 'GET') {
+    const kvMissing = requireKvBinding(env)
+    if (kvMissing) return kvMissing
     return jsonResponse({ setupRequired: await isAdminSetupRequired(env) })
   }
 

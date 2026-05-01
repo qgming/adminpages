@@ -70,7 +70,7 @@ export function TokenPrompt({
   const title = setupRequired ? '设置管理员密码' : '需要管理员 Token'
   const description = setupRequired
     ? '首次部署后需要设置管理员密码，密码会哈希后保存到 KV。'
-    : 'Token 将保存到浏览器 localStorage，所有管理请求会自动附带。'
+    : 'Token 仅在当前页面会话中使用，刷新页面后需要重新登录。'
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

@@ -7,10 +7,13 @@ import {
   isValidProjectId,
   parseFilename,
   projectKey,
+  requireKvBinding,
 } from '../_utils'
 
 export const onRequestGet: PagesFunction<Env> = async (ctx) => {
   const { env, params, next } = ctx
+  const kvMissing = requireKvBinding(env)
+  if (kvMissing) return kvMissing
 
   // 校验 projectId
   const rawId = params.projectId
