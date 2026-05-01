@@ -94,7 +94,7 @@ npm run build
 使用 Wrangler 启动 Pages 本地环境，并模拟 KV 绑定：
 
 ```bash
-npx wrangler pages dev dist --kv=DATA_KV
+npm run pages:dev
 ```
 
 访问后台：
@@ -134,8 +134,17 @@ Workers & Pages → Create application → Pages
 ```txt
 Build command: npm run build
 Build output directory: dist
+Deploy command: npm run deploy
 Root directory: 项目根目录
 ```
+
+`npm run deploy` 会执行：
+
+```bash
+wrangler pages deploy dist --project-name=adminpages
+```
+
+Cloudflare Pages 项目名需要是 `adminpages`。如果你的 Pages 项目使用了其他名称，请同步修改 `package.json` 中的 `deploy` 脚本。
 
 ### 3. 绑定 KV
 

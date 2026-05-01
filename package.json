@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit && tsc -p functions/tsconfig.json --noEmit",
-    "pages:dev": "wrangler pages dev dist"
+    "pages:dev": "wrangler pages dev dist --kv=DATA_KV",
+    "deploy": "wrangler pages deploy dist --project-name=adminpages"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.8",
