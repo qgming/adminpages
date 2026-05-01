@@ -23,7 +23,7 @@ function equalText(a: string, b: string): boolean {
 
 export async function isAdminSetupRequired(env: Env): Promise<boolean> {
   if (env.ADMIN_TOKEN) return false
-  return !(await env.DATA_KV.get(ADMIN_TOKEN_HASH_KEY))
+  return !(await env.KV_BINDING.get(ADMIN_TOKEN_HASH_KEY))
 }
 
 export async function setupAdminToken(
@@ -39,7 +39,7 @@ export async function setupAdminToken(
   if (!(await isAdminSetupRequired(env))) {
     return jsonResponse({ error: '管理员密码已设置' }, 409)
   }
-  await env.DATA_KV.put(ADMIN_TOKEN_HASH_KEY, await sha256Hex(token.trim()))
+  await env.KV_BINDING.put(ADMIN_TOKEN_HASH_KEY, await sha256Hex(token.trim()))
   return jsonResponse({ ok: true })
 }
 
@@ -55,7 +55,7 @@ export async function requireAuth(
       ? null
       : jsonResponse({ error: '未授权' }, 401)
   }
-  const storedHash = await env.DATA_KV.get(ADMIN_TOKEN_HASH_KEY)
+  const storedHash = await env.KV_BINDING.get(ADMIN_TOKEN_HASH_KEY)
   if (!storedHash) {
     return jsonResponse({ error: '需要先设置管理员密码', setupRequired: true }, 401)
   }

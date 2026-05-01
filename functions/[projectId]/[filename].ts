@@ -32,13 +32,13 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
   }
 
   // 项目必须存在；不存在时直接 404（避免泄漏存在性的同时给出明确状态码）
-  const projectMeta = await env.DATA_KV.get(projectKey(projectId))
+  const projectMeta = await env.KV_BINDING.get(projectKey(projectId))
   if (!projectMeta) {
     return new Response('Not Found', { status: 404 })
   }
 
   // 读取文件内容
-  const content = await env.DATA_KV.get(fileKey(projectId, parsed.full))
+  const content = await env.KV_BINDING.get(fileKey(projectId, parsed.full))
   if (content === null) {
     return new Response('Not Found', { status: 404 })
   }

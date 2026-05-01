@@ -40,7 +40,7 @@ async function readProject(
   env: Env,
   id: string,
 ): Promise<Project | null> {
-  const raw = await env.DATA_KV.get(projectKey(id))
+  const raw = await env.KV_BINDING.get(projectKey(id))
   if (!raw) return null
   try {
     const data = JSON.parse(raw) as { name?: unknown; createdAt?: unknown }
@@ -56,7 +56,7 @@ async function readProject(
 // ===== projects =====
 
 async function listProjects(env: Env): Promise<Response> {
-  const result = await env.DATA_KV.list({ prefix: 'proj:', limit: 1000 })
+  const result = await env.KV_BINDING.list({ prefix: 'proj:', limit: 1000 })
   const projects: Project[] = []
   for (const key of result.keys) {
     const id = key.name.slice('proj:'.length)
@@ -94,7 +94,7 @@ async function createProject(
   }
 
   // 已存在校验
-  const existing = await env.DATA_KV.get(projectKey(id))
+  const existing = await env.KV_BINDING.get(projectKey(id))
   if (existing) {
     return jsonResponse({ error: '项目 ID 已存在' }, 409)
   }
@@ -104,7 +104,7 @@ async function createProject(
     name: name.trim(),
     createdAt: Date.now(),
   }
-  await env.DATA_KV.put(projectKey(id), JSON.stringify(project))
+  await env.KV_BINDING.put(projectKey(id), JSON.stringify(project))
   return jsonResponse({ ok: true, project })
 }
 
@@ -120,17 +120,17 @@ async function deleteProject(
   // 使用 cursor 分页处理超过 1000 个文件的极端场景
   let cursor: string | undefined
   for (;;) {
-    const page = await env.DATA_KV.list({
+    const page = await env.KV_BINDING.list({
       prefix: fileKeyPrefix(id),
       cursor,
       limit: 1000,
     })
-    await Promise.all(page.keys.map((k) => env.DATA_KV.delete(k.name)))
+    await Promise.all(page.keys.map((k) => env.KV_BINDING.delete(k.name)))
     if (page.list_complete) break
     cursor = page.cursor
   }
 
-  await env.DATA_KV.delete(projectKey(id))
+  await env.KV_BINDING.delete(projectKey(id))
   return jsonResponse({ ok: true })
 }
 
@@ -148,7 +148,7 @@ async function listFiles(env: Env, projectId: string): Promise<Response> {
   const items: FileItem[] = []
   let cursor: string | undefined
   for (;;) {
-    const page = await env.DATA_KV.list({
+    const page = await env.KV_BINDING.list({
       prefix: fileKeyPrefix(projectId),
       cursor,
       limit: 1000,
@@ -209,7 +209,7 @@ async function saveFile(
     }
   }
 
-  await env.DATA_KV.put(fileKey(projectId, parsed.full), toStore)
+  await env.KV_BINDING.put(fileKey(projectId, parsed.full), toStore)
   return jsonResponse({ ok: true, content: toStore })
 }
 
@@ -231,7 +231,7 @@ async function deleteFile(
   if (!parsed) {
     return jsonResponse({ error: '无效的文件名' }, 400)
   }
-  await env.DATA_KV.delete(fileKey(projectId, parsed.full))
+  await env.KV_BINDING.delete(fileKey(projectId, parsed.full))
   return jsonResponse({ ok: true })
 }
 

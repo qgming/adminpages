@@ -2,5 +2,11 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "adminpages",
   "compatibility_date": "2026-05-01",
-  "pages_build_output_dir": "dist"
+  "pages_build_output_dir": "dist",
+  "kv_namespaces": [
+    {
+      "binding": "KV_BINDING",
+      "id": "f9d86b697ca44edc886d5a47d3dfb8b9",
+    },
+  ],
 }

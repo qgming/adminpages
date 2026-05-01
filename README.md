@@ -7,7 +7,7 @@
 - 管理后台：`/admin`
 - 公开读取：`/<projectId>/<filename>`
 - 支持文件类型：`.json`、`.md`、`.html`
-- KV 绑定名固定为 `DATA_KV`
+- KV 绑定名固定为 `KV_BINDING`
 - 首次访问后台时设置管理员密码，密码哈希后保存到 KV
 - 可选使用 `ADMIN_TOKEN` Secret 覆盖 KV 密码模式
 - JSON 文件保存时自动校验并格式化
@@ -28,13 +28,19 @@ Cloudflare 配置集中在 `wrangler.jsonc`：
 
 ```jsonc
 {
-  "name": "your-pages-project",
+  "name": "adminpages",
   "compatibility_date": "2026-05-01",
-  "pages_build_output_dir": "dist"
+  "pages_build_output_dir": "dist",
+  "kv_namespaces": [
+    {
+      "binding": "KV_BINDING",
+      "id": "这里填你的 KV Namespace ID"
+    }
+  ]
 }
 ```
 
-这意味着 Pages 输出目录已在仓库中固定。`name` 是 Cloudflare Pages 项目名示例，可按你的实际项目修改。代码读取的 KV 绑定名固定为 `DATA_KV`。
+这意味着 Pages 项目名、输出目录和 KV 绑定名已在仓库中固定。代码读取的 KV 绑定名固定为 `KV_BINDING`。
 
 ## 本地开发
 
@@ -109,15 +115,25 @@ Pages Git 集成会在构建成功后自动发布 `dist`，无需填写 `wrangle
 
 ## KV 配置
 
-KV namespace 名称由你决定，部署后需要在 Pages 项目中绑定一次。绑定变量名必须是 `DATA_KV`。
+先创建 KV namespace：
 
 ```txt
-Settings → Bindings → Add → KV namespace
-Variable name: DATA_KV
-KV namespace: 选择你创建的 KV
+Workers & Pages → KV → Create namespace
+Name: adminpages
 ```
 
-Cloudflare 控制台里显示的是 KV 名称，代码里读取的是绑定变量名。KV 的真实 namespace ID 由 Cloudflare 管理，不能用显示名称写进 `wrangler.jsonc` 的 `id` 字段。
+创建后打开这个 KV，复制 Cloudflare 显示的 `Namespace ID`，然后替换 `wrangler.jsonc` 中的占位值：
+
+```jsonc
+"kv_namespaces": [
+  {
+    "binding": "KV_BINDING",
+    "id": "f9d86b697ca44edc886d5a47d3dfb8b9"
+  }
+]
+```
+
+`binding` 必须是 `KV_BINDING`，因为代码读取的是 `env.KV_BINDING`。`id` 必须是 Cloudflare 生成的 Namespace ID，不能填 KV 名称 `adminpages`。
 
 ## 后台密码
 
