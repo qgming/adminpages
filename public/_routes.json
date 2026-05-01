@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "include": ["/*"],
+  "exclude": [
+    "/",
+    "/admin",
+    "/admin/*",
+    "/assets/*",
+    "/favicon.svg",
+    "/favicon.ico",
+    "/icons.svg",
+    "/index.html"
+  ]
+}

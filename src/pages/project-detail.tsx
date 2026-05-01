@@ -1,0 +1,196 @@
+// 项目详情页：文件列表 + 新建/编辑器
+import { useCallback, useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, RefreshCw } from 'lucide-react'
+import type { FileItem, Project } from '@/types'
+import {
+  listFiles,
+  saveFile,
+  deleteFile,
+  fetchPublicFile,
+  getToken,
+  UnauthorizedError,
+} from '@/api'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { TokenPrompt } from '@/components/token-prompt'
+import { AdminHeader } from '@/components/admin-header'
+import { FileList } from '@/components/file-list'
+import { FileEditor } from '@/components/file-editor'
+import { Toaster } from '@/components/ui/sonner'
+import { toast } from 'sonner'
+
+export function ProjectDetailPage() {
+  const { projectId = '' } = useParams<{ projectId: string }>()
+  const navigate = useNavigate()
+
+  const [project, setProject] = useState<Project | null>(null)
+  const [items, setItems] = useState<FileItem[]>([])
+  const [loading, setLoading] = useState(() => !!getToken())
+  const [saving, setSaving] = useState(false)
+  const [tokenOpen, setTokenOpen] = useState(() => !getToken())
+  const [authError, setAuthError] = useState<string | null>(null)
+  const [editing, setEditing] = useState<{
+    item: FileItem
+    content: string
+  } | null>(null)
+
+  const handleUnauthorized = useCallback(() => {
+    const msg = 'Token 无效或已过期，请重新输入'
+    setAuthError(msg)
+    setTokenOpen(true)
+    toast.error(msg)
+  }, [])
+
+  const loadList = useCallback(async () => {
+    if (!projectId) return
+    setLoading(true)
+    try {
+      const { project, items } = await listFiles(projectId)
+      setProject(project)
+      setItems(Array.isArray(items) ? items : [])
+    } catch (e) {
+      if (e instanceof UnauthorizedError) {
+        handleUnauthorized()
+      } else {
+        toast.error(`加载失败: ${(e as Error).message}`)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }, [handleUnauthorized, projectId])
+
+  useEffect(() => {
+    if (getToken()) {
+      const timer = window.setTimeout(() => {
+        void loadList()
+      }, 0)
+      return () => window.clearTimeout(timer)
+    }
+  }, [loadList])
+
+  const handleSave = async (req: { filename: string; content: string }) => {
+    if (!projectId) return
+    setSaving(true)
+    try {
+      await saveFile(projectId, req)
+      toast.success(`已保存 /${projectId}/${req.filename}`)
+      setEditing(null)
+      await loadList()
+    } catch (e) {
+      if (e instanceof UnauthorizedError) {
+        handleUnauthorized()
+      } else {
+        toast.error(`保存失败: ${(e as Error).message}`)
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async (item: FileItem) => {
+    if (!projectId) return
+    try {
+      await deleteFile(projectId, { filename: item.filename })
+      toast.success(`已删除 /${projectId}/${item.filename}`)
+      if (editing && editing.item.filename === item.filename) {
+        setEditing(null)
+      }
+      await loadList()
+    } catch (e) {
+      if (e instanceof UnauthorizedError) {
+        handleUnauthorized()
+      } else {
+        toast.error(`删除失败: ${(e as Error).message}`)
+      }
+    }
+  }
+
+  // 编辑：从公开 URL 抓取最新内容
+  const handleEdit = async (item: FileItem) => {
+    try {
+      const content = await fetchPublicFile(projectId, item.filename)
+      setEditing({ item, content })
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } catch (e) {
+      toast.error(`读取内容失败: ${(e as Error).message}`)
+    }
+  }
+
+  const breadcrumbs = project
+    ? [{ label: `${project.id}（${project.name}）` }]
+    : [{ label: projectId }]
+
+  return (
+    <div className="min-h-dvh bg-background">
+      <AdminHeader breadcrumbs={breadcrumbs} />
+
+      <main className="container max-w-6xl space-y-5 py-4 sm:space-y-6 sm:py-6">
+        <div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/admin')}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            返回项目列表
+          </Button>
+        </div>
+
+        <FileEditor
+          editing={editing}
+          saving={saving}
+          onSave={handleSave}
+          onCancel={() => setEditing(null)}
+        />
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
+            <div className="min-w-0">
+              <CardTitle>
+                {project ? `${project.name} 的文件` : '文件列表'}
+              </CardTitle>
+              <CardDescription>共 {items.length} 个文件</CardDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={loadList}
+              disabled={loading}
+              title="刷新"
+              aria-label="刷新文件列表"
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`}
+              />
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <FileList
+              projectId={projectId}
+              items={items}
+              loading={loading}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+            />
+          </CardContent>
+        </Card>
+      </main>
+
+      <TokenPrompt
+        open={tokenOpen}
+        onOpenChange={setTokenOpen}
+        onConfirm={loadList}
+        errorMessage={authError}
+        onErrorDismiss={() => setAuthError(null)}
+      />
+      <Toaster richColors position="top-right" />
+    </div>
+  )
+}
