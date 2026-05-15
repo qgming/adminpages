@@ -37,6 +37,7 @@
 - 管理后台入口：`/admin`
 - 公开文件读取：`/<projectId>/<filename>`
 - 支持 JSON、Markdown、HTML 三种文件类型
+- 项目级 JSON 跨域配置，支持总开关和 Origin 白名单
 - JSON 保存时自动校验并格式化
 - 首次访问后台时设置管理员密码
 - 管理员密码以 SHA-256 哈希保存到 KV
@@ -200,7 +201,8 @@ Value: 一串高强度密码
 3. 创建项目，例如 `blog`
 4. 进入项目详情页
 5. 选择文件类型，填写文件名和内容
-6. 保存后访问公开 URL
+6. 按需调整项目里的 JSON 跨域配置
+7. 保存后访问公开 URL
 
 示例：
 
@@ -221,6 +223,7 @@ Value: 一串高强度密码
 | `GET`    | `/admin-api/projects`      | 是   | 获取项目列表             |
 | `POST`   | `/admin-api/projects`      | 是   | 创建项目                 |
 | `DELETE` | `/admin-api/projects/<id>` | 是   | 删除项目及其文件         |
+| `PUT`    | `/admin-api/project-cors/<id>` | 是 | 更新项目 JSON 跨域配置 |
 | `GET`    | `/admin-api/files/<id>`    | 是   | 获取项目文件列表         |
 | `POST`   | `/admin-api/files/<id>`    | 是   | 保存文件                 |
 | `DELETE` | `/admin-api/files/<id>`    | 是   | 删除文件                 |
@@ -241,6 +244,13 @@ settings:admin_token_sha256  → 管理员密码 SHA-256 哈希
 proj:<projectId>             → {"id":"blog","name":"博客","createdAt":...}
 file:<projectId>:<filename>  → 文件内容
 ```
+
+## JSON 跨域
+
+- 项目创建后默认开启 JSON 跨域
+- 默认允许所有来源访问该项目下的 `/*.json`
+- 可在项目详情页关闭跨域，或改成 Origin 白名单模式
+- 跨域响应头仅作用于 `.json` 文件，不影响 `.md` 和 `.html`
 
 删除项目时会分页清理该项目下所有 `file:<projectId>:` 前缀的文件。
 

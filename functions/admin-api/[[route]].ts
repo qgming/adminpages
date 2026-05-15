@@ -14,6 +14,7 @@ import type {
   Env,
   FileItem,
   Project,
+  ProjectCorsConfig,
   SaveFileRequest,
 } from '../_types'
 import {
@@ -30,6 +31,36 @@ import {
   setupAdminToken,
 } from '../_utils'
 
+const DEFAULT_CORS_CONFIG: ProjectCorsConfig = {
+  enabled: true,
+  allowAll: true,
+  origins: [],
+}
+
+function normalizeOrigins(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const seen = new Set<string>()
+  const origins: string[] = []
+  for (const item of value) {
+    if (typeof item !== 'string') continue
+    const origin = item.trim()
+    if (!origin || seen.has(origin)) continue
+    seen.add(origin)
+    origins.push(origin)
+  }
+  return origins.slice(0, 50)
+}
+
+function normalizeCorsConfig(value: unknown): ProjectCorsConfig {
+  if (!value || typeof value !== 'object') return { ...DEFAULT_CORS_CONFIG }
+  const raw = value as Partial<ProjectCorsConfig>
+  return {
+    enabled: typeof raw.enabled === 'boolean' ? raw.enabled : true,
+    allowAll: typeof raw.allowAll === 'boolean' ? raw.allowAll : true,
+    origins: normalizeOrigins(raw.origins),
+  }
+}
+
 // 取出 [[route]] 的所有段
 function getSegments(raw: string | string[] | undefined): string[] {
   if (!raw) return []
@@ -44,9 +75,18 @@ async function readProject(
   const raw = await env.KV_BINDING.get(projectKey(id))
   if (!raw) return null
   try {
-    const data = JSON.parse(raw) as { name?: unknown; createdAt?: unknown }
+    const data = JSON.parse(raw) as {
+      name?: unknown
+      createdAt?: unknown
+      cors?: unknown
+    }
     if (typeof data.name === 'string' && typeof data.createdAt === 'number') {
-      return { id, name: data.name, createdAt: data.createdAt }
+      return {
+        id,
+        name: data.name,
+        createdAt: data.createdAt,
+        cors: normalizeCorsConfig(data.cors),
+      }
     }
   } catch {
     // 损坏数据：忽略
@@ -104,8 +144,35 @@ async function createProject(
     id,
     name: name.trim(),
     createdAt: Date.now(),
+    cors: { ...DEFAULT_CORS_CONFIG },
   }
   await env.KV_BINDING.put(projectKey(id), JSON.stringify(project))
+  return jsonResponse({ ok: true, project })
+}
+
+async function updateProjectCors(
+  request: Request,
+  env: Env,
+  projectId: string,
+): Promise<Response> {
+  if (!isValidProjectId(projectId)) {
+    return jsonResponse({ error: '无效的项目 ID' }, 400)
+  }
+  const proj = await readProject(env, projectId)
+  if (!proj) {
+    return jsonResponse({ error: '项目不存在' }, 404)
+  }
+
+  let body: unknown
+  try {
+    body = await request.json()
+  } catch {
+    return jsonResponse({ error: '请求体不是合法 JSON' }, 400)
+  }
+
+  const cors = normalizeCorsConfig(body)
+  const project: Project = { ...proj, cors }
+  await env.KV_BINDING.put(projectKey(projectId), JSON.stringify(project))
   return jsonResponse({ ok: true, project })
 }
 
@@ -273,6 +340,10 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
     if (segments.length === 2 && method === 'DELETE') {
       return deleteProject(env, idSegment)
     }
+  }
+
+  if (resource === 'project-cors' && segments.length === 2) {
+    if (method === 'PUT') return updateProjectCors(request, env, idSegment)
   }
 
   if (resource === 'files' && segments.length === 2) {

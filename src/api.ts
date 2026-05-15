@@ -4,6 +4,7 @@ import type {
   DeleteFileRequest,
   FileItem,
   Project,
+  ProjectCorsConfig,
   SaveFileRequest,
 } from '@/types'
 
@@ -105,6 +106,19 @@ export function deleteProject(id: string): Promise<{ ok: true }> {
   return apiFetch<{ ok: true }>(
     `/admin-api/projects/${encodeURIComponent(id)}`,
     { method: 'DELETE' },
+  )
+}
+
+export function updateProjectCors(
+  projectId: string,
+  cors: ProjectCorsConfig,
+): Promise<{ ok: true; project: Project }> {
+  return apiFetch<{ ok: true; project: Project }>(
+    `/admin-api/project-cors/${encodeURIComponent(projectId)}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(cors),
+    },
   )
 }
 

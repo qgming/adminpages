@@ -8,6 +8,7 @@ import {
   saveFile,
   deleteFile,
   fetchPublicFile,
+  updateProjectCors,
   getToken,
   getAuthStatus,
   UnauthorizedError,
@@ -24,6 +25,7 @@ import { TokenPrompt } from '@/components/token-prompt'
 import { AdminHeader } from '@/components/admin-header'
 import { FileList } from '@/components/file-list'
 import { FileEditor } from '@/components/file-editor'
+import { CorsSettings } from '@/components/cors-settings'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'sonner'
 
@@ -35,6 +37,7 @@ export function ProjectDetailPage() {
   const [items, setItems] = useState<FileItem[]>([])
   const [loading, setLoading] = useState(() => !!getToken())
   const [saving, setSaving] = useState(false)
+  const [savingCors, setSavingCors] = useState(false)
   const [tokenOpen, setTokenOpen] = useState(() => !getToken())
   const [setupRequired, setSetupRequired] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
@@ -121,6 +124,24 @@ export function ProjectDetailPage() {
     }
   }
 
+  const handleSaveCors = async (cors: Project['cors']) => {
+    if (!projectId) return
+    setSavingCors(true)
+    try {
+      const { project } = await updateProjectCors(projectId, cors)
+      setProject(project)
+      toast.success(`已更新 ${projectId} 的跨域配置`)
+    } catch (e) {
+      if (e instanceof UnauthorizedError) {
+        handleUnauthorized(e.setupRequired)
+      } else {
+        toast.error(`保存跨域配置失败: ${(e as Error).message}`)
+      }
+    } finally {
+      setSavingCors(false)
+    }
+  }
+
   // 编辑：从公开 URL 抓取最新内容
   const handleEdit = async (item: FileItem) => {
     try {
@@ -158,6 +179,14 @@ export function ProjectDetailPage() {
           onSave={handleSave}
           onCancel={() => setEditing(null)}
         />
+
+        {project && (
+          <CorsSettings
+            value={project.cors}
+            saving={savingCors}
+            onSave={handleSaveCors}
+          />
+        )}
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
