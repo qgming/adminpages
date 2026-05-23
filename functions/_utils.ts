@@ -4,7 +4,7 @@ import type { Env, FileExt } from './_types'
 const ADMIN_TOKEN_HASH_KEY = 'settings:admin_token_sha256'
 const MIN_ADMIN_TOKEN_LENGTH = 8
 const KV_BINDING_ERROR =
-  'KV_BINDING 未绑定。请在 wrangler.jsonc 中填写真实 KV Namespace ID 后重新部署。'
+  'KV_BINDING 未绑定。请在 Cloudflare Pages → Settings → Bindings 中添加名为 KV_BINDING 的 KV 命名空间绑定，然后重新部署一次。'
 
 async function sha256Hex(value: string): Promise<string> {
   const bytes = new TextEncoder().encode(value)

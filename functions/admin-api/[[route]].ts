@@ -12,7 +12,12 @@ import type {
   CreateProjectRequest,
   DeleteFileRequest,
   Env,
+  ExportSnapshot,
+  ExportedProject,
   FileItem,
+  ImportMode,
+  ImportRequest,
+  ImportResult,
   Project,
   ProjectCorsConfig,
   SaveFileRequest,
@@ -303,6 +308,185 @@ async function deleteFile(
   return jsonResponse({ ok: true })
 }
 
+// ===== export / import =====
+
+// 导出全部数据：遍历所有项目及其文件，组装为快照
+async function exportAll(env: Env): Promise<Response> {
+  const projects: ExportedProject[] = []
+
+  // 拉取所有 proj:* 键
+  const projList = await env.KV_BINDING.list({ prefix: 'proj:', limit: 1000 })
+  for (const key of projList.keys) {
+    const id = key.name.slice('proj:'.length)
+    if (!id) continue
+    const proj = await readProject(env, id)
+    if (!proj) continue
+
+    // 拉取该项目下全部文件
+    const files: { filename: string; content: string }[] = []
+    let cursor: string | undefined
+    for (;;) {
+      const page = await env.KV_BINDING.list({
+        prefix: fileKeyPrefix(id),
+        cursor,
+        limit: 1000,
+      })
+      for (const fileKeyEntry of page.keys) {
+        const filename = fileKeyEntry.name.slice(fileKeyPrefix(id).length)
+        if (!filename) continue
+        const content = await env.KV_BINDING.get(fileKeyEntry.name)
+        if (content !== null) files.push({ filename, content })
+      }
+      if (page.list_complete) break
+      cursor = page.cursor
+    }
+
+    projects.push({
+      id: proj.id,
+      name: proj.name,
+      createdAt: proj.createdAt,
+      cors: proj.cors,
+      files,
+    })
+  }
+
+  const snapshot: ExportSnapshot = {
+    version: 1,
+    exportedAt: Date.now(),
+    projects,
+  }
+  return jsonResponse(snapshot)
+}
+
+// 按前缀清空 KV 中所有键
+async function purgeByPrefix(env: Env, prefix: string): Promise<void> {
+  let cursor: string | undefined
+  for (;;) {
+    const page = await env.KV_BINDING.list({ prefix, cursor, limit: 1000 })
+    await Promise.all(page.keys.map((k) => env.KV_BINDING.delete(k.name)))
+    if (page.list_complete) break
+    cursor = page.cursor
+  }
+}
+
+// 清空所有项目数据（保留管理员密码）
+async function purgeAllData(env: Env): Promise<void> {
+  await purgeByPrefix(env, 'file:')
+  await purgeByPrefix(env, 'proj:')
+}
+
+function isValidMode(value: unknown): value is ImportMode {
+  return value === 'skip' || value === 'overwrite' || value === 'replace'
+}
+
+// 导入数据
+async function importAll(
+  request: Request,
+  env: Env,
+): Promise<Response> {
+  let body: ImportRequest
+  try {
+    body = (await request.json()) as ImportRequest
+  } catch {
+    return jsonResponse({ error: '请求体不是合法 JSON' }, 400)
+  }
+
+  if (!body || typeof body !== 'object') {
+    return jsonResponse({ error: '请求体格式错误' }, 400)
+  }
+  if (!isValidMode(body.mode)) {
+    return jsonResponse({ error: '无效的导入模式' }, 400)
+  }
+  const data = body.data
+  if (!data || typeof data !== 'object' || !Array.isArray(data.projects)) {
+    return jsonResponse({ error: '数据快照格式错误' }, 400)
+  }
+  if (data.version !== 1) {
+    return jsonResponse({ error: `不支持的快照版本: ${String(data.version)}` }, 400)
+  }
+
+  const result: ImportResult = {
+    imported: { projects: 0, files: 0 },
+    skipped: { projects: 0, files: 0 },
+    errors: [],
+  }
+
+  // 替换模式：先清空
+  if (body.mode === 'replace') {
+    await purgeAllData(env)
+  }
+
+  for (const exported of data.projects) {
+    if (!exported || typeof exported !== 'object') {
+      result.errors.push('跳过无效的项目条目')
+      continue
+    }
+    const { id, name, createdAt, cors, files } = exported
+
+    if (!isValidProjectId(id)) {
+      result.errors.push(`项目 ID 不合法: ${String(id)}`)
+      continue
+    }
+    if (!isValidProjectName(name)) {
+      result.errors.push(`项目 ${id} 名称不合法`)
+      continue
+    }
+
+    // 冲突处理
+    const existing = await env.KV_BINDING.get(projectKey(id))
+    if (existing && body.mode === 'skip') {
+      result.skipped.projects += 1
+      // 计算被跳过的文件数（用于反馈）
+      const filesArr = Array.isArray(files) ? files : []
+      result.skipped.files += filesArr.length
+      continue
+    }
+
+    const project: Project = {
+      id,
+      name: name.trim(),
+      createdAt:
+        typeof createdAt === 'number' && createdAt > 0
+          ? createdAt
+          : Date.now(),
+      cors: normalizeCorsConfig(cors),
+    }
+    await env.KV_BINDING.put(projectKey(id), JSON.stringify(project))
+    result.imported.projects += 1
+
+    // 写入文件
+    const filesArr = Array.isArray(files) ? files : []
+    for (const file of filesArr) {
+      if (!file || typeof file !== 'object') {
+        result.errors.push(`项目 ${id} 含无效文件条目`)
+        continue
+      }
+      const parsed = parseFilename(file.filename)
+      if (!parsed) {
+        result.errors.push(`项目 ${id} 文件名不合法: ${String(file.filename)}`)
+        continue
+      }
+      if (typeof file.content !== 'string') {
+        result.errors.push(`项目 ${id} 文件 ${parsed.full} 内容非字符串`)
+        continue
+      }
+      let toStore = file.content
+      if (parsed.ext === 'json') {
+        try {
+          toStore = JSON.stringify(JSON.parse(file.content), null, 2)
+        } catch {
+          result.errors.push(`项目 ${id} 文件 ${parsed.full} JSON 格式无效`)
+          continue
+        }
+      }
+      await env.KV_BINDING.put(fileKey(id, parsed.full), toStore)
+      result.imported.files += 1
+    }
+  }
+
+  return jsonResponse({ ok: true, result })
+}
+
 // ===== entry =====
 
 export const onRequest: PagesFunction<Env> = async (ctx) => {
@@ -350,6 +534,14 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
     if (method === 'GET') return listFiles(env, idSegment)
     if (method === 'POST') return saveFile(request, env, idSegment)
     if (method === 'DELETE') return deleteFile(request, env, idSegment)
+  }
+
+  if (resource === 'export' && segments.length === 1 && method === 'GET') {
+    return exportAll(env)
+  }
+
+  if (resource === 'import' && segments.length === 1 && method === 'POST') {
+    return importAll(request, env)
   }
 
   return jsonResponse({ error: 'Not Found' }, 404)

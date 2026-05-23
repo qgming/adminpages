@@ -41,6 +41,39 @@ export interface DeleteFileRequest {
   filename: string
 }
 
+// 导出快照中单个项目的结构
+export interface ExportedProject {
+  id: string
+  name: string
+  createdAt: number
+  cors: ProjectCorsConfig
+  files: { filename: string; content: string }[]
+}
+
+// 完整数据快照
+export interface ExportSnapshot {
+  version: 1
+  exportedAt: number
+  projects: ExportedProject[]
+}
+
+// 导入模式
+//   skip    = 同 id 项目跳过
+//   overwrite = 同 id 项目覆盖元信息与文件
+//   replace = 先清空全部项目和文件，再写入（管理员密码保留）
+export type ImportMode = 'skip' | 'overwrite' | 'replace'
+
+export interface ImportRequest {
+  data: ExportSnapshot
+  mode: ImportMode
+}
+
+export interface ImportResult {
+  imported: { projects: number; files: number }
+  skipped: { projects: number; files: number }
+  errors: string[]
+}
+
 // Cloudflare Pages 环境绑定
 export interface Env {
   KV_BINDING: KVNamespace

@@ -16,6 +16,7 @@ import { TokenPrompt } from '@/components/token-prompt'
 import { AdminHeader } from '@/components/admin-header'
 import { ProjectList } from '@/components/project-list'
 import { ProjectCreator } from '@/components/project-creator'
+import { ExportImportBar } from '@/components/export-import-bar'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'sonner'
 
@@ -126,6 +127,10 @@ export function ProjectListPage() {
                 className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`}
               />
             </Button>
+            <ExportImportBar
+              onImported={loadList}
+              onUnauthorized={handleUnauthorized}
+            />
             <ProjectCreator creating={creating} onCreate={handleCreate} />
           </div>
         </section>

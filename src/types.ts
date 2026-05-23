@@ -31,3 +31,27 @@ export interface SaveFileRequest {
 export interface DeleteFileRequest {
   filename: string
 }
+
+// 导出快照中单个项目
+export interface ExportedProject {
+  id: string
+  name: string
+  createdAt: number
+  cors: ProjectCorsConfig
+  files: { filename: string; content: string }[]
+}
+
+// 完整数据快照
+export interface ExportSnapshot {
+  version: 1
+  exportedAt: number
+  projects: ExportedProject[]
+}
+
+export type ImportMode = 'skip' | 'overwrite' | 'replace'
+
+export interface ImportResult {
+  imported: { projects: number; files: number }
+  skipped: { projects: number; files: number }
+  errors: string[]
+}

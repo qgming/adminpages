@@ -2,7 +2,10 @@
 import type {
   CreateProjectRequest,
   DeleteFileRequest,
+  ExportSnapshot,
   FileItem,
+  ImportMode,
+  ImportResult,
   Project,
   ProjectCorsConfig,
   SaveFileRequest,
@@ -171,4 +174,20 @@ export async function fetchPublicFile(
     { cache: 'no-store' },
   )
   return res.ok ? res.text() : ''
+}
+
+// ===== export / import =====
+
+export function exportAll(): Promise<ExportSnapshot> {
+  return apiFetch<ExportSnapshot>('/admin-api/export')
+}
+
+export function importAll(
+  data: ExportSnapshot,
+  mode: ImportMode,
+): Promise<{ ok: true; result: ImportResult }> {
+  return apiFetch<{ ok: true; result: ImportResult }>('/admin-api/import', {
+    method: 'POST',
+    body: JSON.stringify({ data, mode }),
+  })
 }

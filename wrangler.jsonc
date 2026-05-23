@@ -3,10 +3,7 @@
   "name": "adminpages",
   "compatibility_date": "2026-05-01",
   "pages_build_output_dir": "dist",
-  "kv_namespaces": [
-    {
-      "binding": "KV_BINDING",
-      "id": "填写你的KV命名空间ID",
-    },
-  ],
+  // KV 绑定改由 Cloudflare Pages Dashboard 配置：
+  // Settings → Bindings → Add → KV namespace
+  // Variable name 必须填 KV_BINDING
 }
