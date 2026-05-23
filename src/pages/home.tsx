@@ -3,7 +3,7 @@
 // 移动：纵向布局（顶部来源卡 -> 中心服务 -> 底部 URL 卡），卡片更小
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Settings, FileJson, FileText, FileCode } from 'lucide-react'
+import { Settings, FileJson, FileText, FileCode, Github } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
@@ -205,6 +205,21 @@ export function HomePage() {
             <span className="font-semibold text-foreground">菟丝</span>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              asChild
+              title="GitHub 仓库"
+              aria-label="打开 GitHub 仓库"
+            >
+              <a
+                href="https://github.com/qgming/adminpages"
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Github className="h-4 w-4" />
+              </a>
+            </Button>
             <ThemeToggle />
             <Button asChild>
               <Link to="/admin">

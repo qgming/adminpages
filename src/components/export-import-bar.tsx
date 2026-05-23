@@ -190,7 +190,6 @@ export function ExportImportBar({ onImported, onUnauthorized }: Props) {
     <>
       <Button
         variant="outline"
-        size="sm"
         onClick={handleExport}
         disabled={exporting}
         title="导出全部数据"
@@ -201,7 +200,6 @@ export function ExportImportBar({ onImported, onUnauthorized }: Props) {
 
       <Button
         variant="outline"
-        size="sm"
         onClick={() => setImportOpen(true)}
         title="从备份文件导入"
       >

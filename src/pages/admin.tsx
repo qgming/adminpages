@@ -8,6 +8,7 @@ import {
   deleteProject,
   getToken,
   getAuthStatus,
+  clearToken,
   UnauthorizedError,
 } from '@/api'
 import { Button } from '@/components/ui/button'
@@ -27,13 +28,24 @@ export function ProjectListPage() {
   const [tokenOpen, setTokenOpen] = useState(() => !getToken())
   const [setupRequired, setSetupRequired] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
+  const [loggedIn, setLoggedIn] = useState(() => !!getToken())
 
   const handleUnauthorized = useCallback((setup = false) => {
     const msg = setup ? '请先设置管理员密码' : 'Token 无效或已过期，请重新输入'
     setSetupRequired(setup)
     setAuthError(msg)
     setTokenOpen(true)
+    setLoggedIn(false)
     toast.error(msg)
+  }, [])
+
+  const handleLogout = useCallback(() => {
+    clearToken()
+    setProjects([])
+    setLoggedIn(false)
+    setTokenOpen(true)
+    setAuthError(null)
+    toast.success('已登出')
   }, [])
 
   const loadList = useCallback(async () => {
@@ -41,6 +53,7 @@ export function ProjectListPage() {
     try {
       const { projects } = await listProjects()
       setProjects(Array.isArray(projects) ? projects : [])
+      setLoggedIn(true)
     } catch (e) {
       if (e instanceof UnauthorizedError) {
         handleUnauthorized(e.setupRequired)
@@ -102,9 +115,9 @@ export function ProjectListPage() {
 
   return (
     <div className="min-h-dvh bg-background">
-      <AdminHeader />
+      <AdminHeader loggedIn={loggedIn} onLogout={handleLogout} />
 
-      <main className="container max-w-6xl space-y-5 py-4 sm:space-y-6 sm:py-6">
+      <main className="container max-w-6xl space-y-6 py-5 sm:space-y-8 sm:py-8">
         <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <h1 className="flex items-center gap-2 text-xl font-semibold leading-tight">

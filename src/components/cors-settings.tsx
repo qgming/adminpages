@@ -10,6 +10,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 
 interface Props {
@@ -66,27 +67,40 @@ function CorsSettingsForm({ value, saving, onSave }: Props) {
           作用于当前项目下的 <code>*.json</code> 公开地址。
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="flex items-center gap-3 rounded-md border p-3 text-sm">
-            <input
-              type="checkbox"
+      <CardContent className="space-y-5">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3 rounded-lg border bg-card/50 px-4 py-3">
+            <div className="space-y-0.5">
+              <Label htmlFor="cors-enabled" className="text-sm font-medium">
+                允许跨域访问 JSON
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                关闭后该项目下所有 <code>.json</code> 文件不再返回 CORS 头
+              </p>
+            </div>
+            <Switch
+              id="cors-enabled"
               checked={enabled}
-              onChange={(event) => setEnabled(event.target.checked)}
-              className="h-4 w-4 accent-primary"
+              onCheckedChange={setEnabled}
             />
-            <span>允许跨域访问 JSON</span>
-          </label>
-          <label className="flex items-center gap-3 rounded-md border p-3 text-sm">
-            <input
-              type="checkbox"
+          </div>
+
+          <div className="flex items-center justify-between gap-3 rounded-lg border bg-card/50 px-4 py-3 data-[disabled=true]:opacity-50" data-disabled={!enabled}>
+            <div className="space-y-0.5">
+              <Label htmlFor="cors-allow-all" className="text-sm font-medium">
+                允许所有来源
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                关闭后仅下方白名单中的 Origin 会收到跨域响应头
+              </p>
+            </div>
+            <Switch
+              id="cors-allow-all"
               checked={allowAll}
-              onChange={(event) => setAllowAll(event.target.checked)}
+              onCheckedChange={setAllowAll}
               disabled={!enabled}
-              className="h-4 w-4 accent-primary disabled:opacity-40"
             />
-            <span>允许所有来源</span>
-          </label>
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -102,7 +116,7 @@ function CorsSettingsForm({ value, saving, onSave }: Props) {
             spellCheck={false}
           />
           <p className="text-xs text-muted-foreground">
-            每行一个完整 Origin。关闭“允许所有来源”后，仅这些来源会收到跨域响应头。
+            每行一个完整 Origin。仅在关闭“允许所有来源”后生效。
           </p>
           {enabled && !allowAll && origins.length === 0 && (
             <p className="text-xs text-destructive">

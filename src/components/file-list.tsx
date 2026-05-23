@@ -51,14 +51,14 @@ export function FileList({
 }: Props) {
   if (loading) {
     return (
-      <div className="py-8 text-center text-sm text-muted-foreground">
+      <div className="rounded-xl border border-dashed bg-muted/30 py-10 text-center text-sm text-muted-foreground">
         加载中…
       </div>
     )
   }
   if (items.length === 0) {
     return (
-      <div className="py-8 text-center text-sm text-muted-foreground">
+      <div className="rounded-xl border border-dashed bg-muted/30 py-10 text-center text-sm text-muted-foreground">
         还没有文件，使用上方表单创建第一个吧。
       </div>
     )
@@ -77,71 +77,71 @@ export function FileList({
           />
         ))}
       </div>
-      <div className="hidden md:block">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-[100px]">类型</TableHead>
-            <TableHead>文件名</TableHead>
-            <TableHead>公开 URL</TableHead>
-            <TableHead className="w-[180px] text-right">操作</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {items.map((item) => {
-            const ext = extOf(item.filename)
-            const url = `/${projectId}/${item.filename}`
-            return (
-              <TableRow key={item.filename}>
-                <TableCell>
-                  <Badge
-                    variant={EXT_VARIANT[ext] ?? 'outline'}
-                    className="uppercase"
-                  >
-                    {ext}
-                  </Badge>
-                </TableCell>
-                <TableCell className="font-mono text-sm">
-                  {item.filename}
-                </TableCell>
-                <TableCell>
-                  <a
-                    href={url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-mono text-xs text-primary hover:underline"
-                  >
-                    {url}
-                  </a>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="打开"
-                      aria-label={`打开 ${url}`}
-                      onClick={() => window.open(url, '_blank')}
+      <div className="hidden overflow-hidden rounded-lg border md:block">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/40 hover:bg-muted/40">
+              <TableHead className="w-[100px] pl-4">类型</TableHead>
+              <TableHead>文件名</TableHead>
+              <TableHead>公开 URL</TableHead>
+              <TableHead className="w-[180px] pr-4 text-right">操作</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.map((item) => {
+              const ext = extOf(item.filename)
+              const url = `/${projectId}/${item.filename}`
+              return (
+                <TableRow key={item.filename}>
+                  <TableCell className="pl-4">
+                    <Badge
+                      variant={EXT_VARIANT[ext] ?? 'outline'}
+                      className="uppercase"
                     >
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="编辑"
-                      aria-label={`编辑 ${item.filename}`}
-                      onClick={() => onEdit(item)}
+                      {ext}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="font-mono text-sm">
+                    {item.filename}
+                  </TableCell>
+                  <TableCell>
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-mono text-xs text-primary hover:underline"
                     >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <DeleteFileButton item={item} url={url} onDelete={onDelete} />
-                  </div>
-                </TableCell>
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
+                      {url}
+                    </a>
+                  </TableCell>
+                  <TableCell className="pr-4 text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="打开"
+                        aria-label={`打开 ${url}`}
+                        onClick={() => window.open(url, '_blank')}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="编辑"
+                        aria-label={`编辑 ${item.filename}`}
+                        onClick={() => onEdit(item)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <DeleteFileButton item={item} url={url} onDelete={onDelete} />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
       </div>
     </>
   )
@@ -162,9 +162,9 @@ function FileMobileItem({
   const url = `/${projectId}/${item.filename}`
 
   return (
-    <div className="rounded-lg border bg-background p-3">
+    <div className="rounded-xl border bg-card p-3">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1">
+        <div className="min-w-0 space-y-1.5">
           <Badge variant={EXT_VARIANT[ext] ?? 'outline'} className="uppercase">
             {ext}
           </Badge>

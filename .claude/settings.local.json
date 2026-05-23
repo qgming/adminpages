@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(npm ls *)",
+      "Bash(node -e \"console.log\\(Object.keys\\(require\\('radix-ui'\\)\\).join\\('\\\\n'\\)\\)\")"
     ]
   }
 }

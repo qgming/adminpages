@@ -11,7 +11,38 @@ import type {
   SaveFileRequest,
 } from '@/types'
 
-let adminToken: string | null = null
+// Token 持久化：localStorage 存储 + 7 天过期
+//   过期或不存在 → getToken() 返回 null，会触发登录弹窗
+//   401 / 用户登出 → clearToken() 清空 storage
+const TOKEN_STORAGE_KEY = 'tusi-admin-token'
+const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 天
+
+interface StoredToken {
+  token: string
+  expiresAt: number
+}
+
+function readStoredToken(): string | null {
+  if (typeof localStorage === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(TOKEN_STORAGE_KEY)
+    if (!raw) return null
+    const data = JSON.parse(raw) as Partial<StoredToken>
+    if (
+      typeof data.token !== 'string' ||
+      typeof data.expiresAt !== 'number' ||
+      Date.now() > data.expiresAt
+    ) {
+      localStorage.removeItem(TOKEN_STORAGE_KEY)
+      return null
+    }
+    return data.token
+  } catch {
+    return null
+  }
+}
+
+let adminToken: string | null = readStoredToken()
 
 export function getToken(): string | null {
   return adminToken
@@ -19,10 +50,28 @@ export function getToken(): string | null {
 
 export function setToken(token: string): void {
   adminToken = token
+  if (typeof localStorage !== 'undefined') {
+    const payload: StoredToken = {
+      token,
+      expiresAt: Date.now() + TOKEN_TTL_MS,
+    }
+    try {
+      localStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(payload))
+    } catch {
+      // 私有模式或配额满时静默失败，至少内存还能用
+    }
+  }
 }
 
 export function clearToken(): void {
   adminToken = null
+  if (typeof localStorage !== 'undefined') {
+    try {
+      localStorage.removeItem(TOKEN_STORAGE_KEY)
+    } catch {
+      // 忽略
+    }
+  }
 }
 
 // 401 时抛出此错误，调用方需清 token 并重新弹 token 框

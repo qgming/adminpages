@@ -1,7 +1,7 @@
 // 项目详情页：文件列表 + 新建/编辑器
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Files, RefreshCw } from 'lucide-react'
 import type { FileItem, Project } from '@/types'
 import {
   listFiles,
@@ -11,11 +11,14 @@ import {
   updateProjectCors,
   getToken,
   getAuthStatus,
+  clearToken,
   UnauthorizedError,
 } from '@/api'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -41,6 +44,7 @@ export function ProjectDetailPage() {
   const [tokenOpen, setTokenOpen] = useState(() => !getToken())
   const [setupRequired, setSetupRequired] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
+  const [loggedIn, setLoggedIn] = useState(() => !!getToken())
   const [editing, setEditing] = useState<{
     item: FileItem
     content: string
@@ -51,8 +55,20 @@ export function ProjectDetailPage() {
     setSetupRequired(setup)
     setAuthError(msg)
     setTokenOpen(true)
+    setLoggedIn(false)
     toast.error(msg)
   }, [])
+
+  const handleLogout = useCallback(() => {
+    clearToken()
+    setProject(null)
+    setItems([])
+    setLoggedIn(false)
+    setTokenOpen(true)
+    setAuthError(null)
+    toast.success('已登出')
+    navigate('/admin')
+  }, [navigate])
 
   const loadList = useCallback(async () => {
     if (!projectId) return
@@ -61,6 +77,7 @@ export function ProjectDetailPage() {
       const { project, items } = await listFiles(projectId)
       setProject(project)
       setItems(Array.isArray(items) ? items : [])
+      setLoggedIn(true)
     } catch (e) {
       if (e instanceof UnauthorizedError) {
         handleUnauthorized(e.setupRequired)
@@ -159,9 +176,13 @@ export function ProjectDetailPage() {
 
   return (
     <div className="min-h-dvh bg-background">
-      <AdminHeader breadcrumbs={breadcrumbs} />
+      <AdminHeader
+        breadcrumbs={breadcrumbs}
+        loggedIn={loggedIn}
+        onLogout={handleLogout}
+      />
 
-      <main className="container max-w-6xl space-y-5 py-4 sm:space-y-6 sm:py-6">
+      <main className="container max-w-6xl space-y-6 py-5 sm:space-y-8 sm:py-8">
         <div>
           <Button
             variant="ghost"
@@ -180,34 +201,32 @@ export function ProjectDetailPage() {
           onCancel={() => setEditing(null)}
         />
 
-        {project && (
-          <CorsSettings
-            value={project.cors}
-            saving={savingCors}
-            onSave={handleSaveCors}
-          />
-        )}
-
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
-            <div className="min-w-0">
-              <CardTitle>
-                {project ? `${project.name} 的文件` : '文件列表'}
-              </CardTitle>
-              <CardDescription>共 {items.length} 个文件</CardDescription>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={loadList}
-              disabled={loading}
-              title="刷新"
-              aria-label="刷新文件列表"
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`}
-              />
-            </Button>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Files className="h-5 w-5 text-primary" />
+              {project ? `${project.name} 的文件` : '文件列表'}
+              <Badge variant="secondary" aria-label={`文件数量 ${items.length}`}>
+                {items.length}
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              点击公开 URL 可直接预览，点编辑按钮可修改内容。
+            </CardDescription>
+            <CardAction>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={loadList}
+                disabled={loading}
+                title="刷新"
+                aria-label="刷新文件列表"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`}
+                />
+              </Button>
+            </CardAction>
           </CardHeader>
           <CardContent>
             <FileList
@@ -219,6 +238,14 @@ export function ProjectDetailPage() {
             />
           </CardContent>
         </Card>
+
+        {project && (
+          <CorsSettings
+            value={project.cors}
+            saving={savingCors}
+            onSave={handleSaveCors}
+          />
+        )}
       </main>
 
       <TokenPrompt
