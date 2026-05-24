@@ -37,7 +37,7 @@
 - 管理后台入口：`/admin`
 - 公开文件读取：`/<projectId>/<filename>`
 - 支持 JSON、Markdown、HTML 三种文件类型
-- 项目级 JSON 跨域配置，支持总开关和 Origin 白名单
+- JSON 文件默认允许跨域读取
 - JSON 保存时自动校验并格式化
 - 一键导出 / 导入全部数据，便于备份和迁移
 - 首次访问后台时设置管理员密码，SHA-256 哈希存于 KV
@@ -164,21 +164,22 @@ https://<your-domain>/admin
 
 ### 想用 Wrangler CLI 本地部署
 
-走 Git 集成不需要这一步。若你坚持用 CLI 直接推送，则需要本地填写 KV 命名空间 ID：
+走 Git 集成不需要这一步。若你坚持用 CLI 直接推送：
 
 ```bash
-# 1. 创建 KV（已有则跳过，记下输出中的 id）
+# 1. 创建 KV（已有则跳过）
 npx wrangler kv namespace create tusi
 
-# 2. 把 id 填入 wrangler.jsonc：
-#    "kv_namespaces": [{ "binding": "KV_BINDING", "id": "<上一步的 id>" }]
+# 2. 在 Pages → Settings → Bindings 添加 KV 绑定
+#    Variable name: KV_BINDING
+#    选择第 1 步创建的 namespace
 
 # 3. 构建并部署
 npm run build
 npx wrangler pages deploy dist --project-name=tusi
 ```
 
-> 注意：CLI 部署写入 `wrangler.jsonc` 的 KV ID 仅本地生效，Dashboard Bindings 不会被覆盖。
+> 注意：KV 绑定通过 Dashboard 管理，不在仓库中维护命名空间 ID。
 
 ---
 
@@ -204,8 +205,7 @@ Value: 一串高强度密码
 2. 点击 **新建项目**，填写英文 ID 和中文名（例如 ID = `blog`）
 3. 进入项目详情页
 4. 选择文件类型，填写文件名和内容，保存
-5. 按需调整该项目的 JSON 跨域配置
-6. 访问公开 URL
+5. 访问公开 URL
 
 示例：
 
@@ -269,20 +269,21 @@ npm run pages:dev
 
 ## API
 
-| 方法     | 路径                           | 鉴权 | 说明                     |
-| -------- | ------------------------------ | ---- | ------------------------ |
-| `GET`    | `/<projectId>/<filename>`      | 否   | 公开读取文件             |
-| `GET`    | `/admin-api/auth-status`       | 否   | 查询是否需要首次设置密码 |
-| `POST`   | `/admin-api/setup`             | 否   | 首次设置管理员密码       |
-| `GET`    | `/admin-api/projects`          | 是   | 获取项目列表             |
-| `POST`   | `/admin-api/projects`          | 是   | 创建项目                 |
-| `DELETE` | `/admin-api/projects/<id>`     | 是   | 删除项目及其文件         |
-| `PUT`    | `/admin-api/project-cors/<id>` | 是   | 更新项目 JSON 跨域配置   |
-| `GET`    | `/admin-api/files/<id>`        | 是   | 获取项目文件列表         |
-| `POST`   | `/admin-api/files/<id>`        | 是   | 保存文件                 |
-| `DELETE` | `/admin-api/files/<id>`        | 是   | 删除文件                 |
-| `GET`    | `/admin-api/export`            | 是   | 导出全部项目和文件快照   |
-| `POST`   | `/admin-api/import`            | 是   | 导入数据快照（三种模式） |
+| 方法     | 路径                              | 鉴权 | 说明                     |
+| -------- | --------------------------------- | ---- | ------------------------ |
+| `GET`    | `/<projectId>/<filename>`         | 否   | 公开读取文件             |
+| `GET`    | `/admin-api/auth-status`          | 否   | 查询是否需要首次设置密码 |
+| `POST`   | `/admin-api/setup`                | 否   | 首次设置管理员密码       |
+| `POST`   | `/admin-api/change-password`      | 是   | 修改管理员密码           |
+| `GET`    | `/admin-api/projects`             | 是   | 获取项目列表             |
+| `POST`   | `/admin-api/projects`             | 是   | 创建项目                 |
+| `PUT`    | `/admin-api/projects/<id>`        | 是   | 修改项目名或项目 ID      |
+| `DELETE` | `/admin-api/projects/<id>`        | 是   | 删除项目及其文件         |
+| `GET`    | `/admin-api/files/<id>`           | 是   | 获取项目文件列表         |
+| `POST`   | `/admin-api/files/<id>`           | 是   | 保存文件                 |
+| `DELETE` | `/admin-api/files/<id>`           | 是   | 删除文件                 |
+| `GET`    | `/admin-api/export`               | 是   | 导出全部项目和文件快照   |
+| `POST`   | `/admin-api/import`               | 是   | 导入数据快照（三种模式） |
 
 保存文件请求示例：
 
@@ -299,20 +300,11 @@ npm run pages:dev
 
 ```txt
 settings:admin_token_sha256  → 管理员密码 SHA-256 哈希
-proj:<projectId>             → {"id":"blog","name":"博客","createdAt":...,"cors":{...}}
+proj:<projectId>             → {"id":"blog","name":"博客","createdAt":...}
 file:<projectId>:<filename>  → 文件内容
 ```
 
 删除项目时会分页清理该项目下所有 `file:<projectId>:` 前缀的文件。
-
----
-
-## JSON 跨域
-
-- 项目创建后默认开启 JSON 跨域
-- 默认允许所有来源访问该项目下的 `*.json`
-- 可在项目详情页关闭跨域，或改成 Origin 白名单
-- 跨域响应头仅作用于 `.json` 文件，不影响 `.md` 和 `.html`
 
 ---
 
@@ -333,7 +325,6 @@ file:<projectId>:<filename>  → 文件内容
 │   ├── pages/
 │   ├── api.ts
 │   └── main.tsx
-├── wrangler.jsonc                      # Cloudflare Pages 配置
 └── package.json
 ```
 
