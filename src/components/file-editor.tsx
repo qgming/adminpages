@@ -1,12 +1,12 @@
 // 新建 / 编辑文件表单：选择类型、填写文件名和内容
-import { useState } from 'react'
-import { Save, X, FilePlus2, FileEdit } from 'lucide-react'
-import type { FileItem } from '@/types'
-import type { FileExt } from '@/types'
+// 使用 CodeMirror 6 提供语法高亮 / 行号 / 自动缩进
+// Markdown 类型在桌面端启用分屏预览，移动端用 Tab 切换
+import { lazy, Suspense, useState } from 'react'
+import { Save, X, FilePlus2, FileEdit, Eye, EyeOff, Wand2 } from 'lucide-react'
+import type { FileItem, FileExt } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -21,6 +21,17 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
+
+// 懒加载 CodeMirror 与预览，避免首屏拉胖 bundle
+const CodeEditor = lazy(() =>
+  import('@/components/code-editor').then((m) => ({ default: m.CodeEditor })),
+)
+const MarkdownPreview = lazy(() =>
+  import('@/components/markdown-preview').then((m) => ({
+    default: m.MarkdownPreview,
+  })),
+)
 
 interface Props {
   // 编辑模式：传入需编辑的文件 + 当前内容；新建模式：传 null
@@ -79,14 +90,36 @@ function FileEditorForm({
   const [basename, setBasename] = useState(initialFile.basename)
   const [fileExt, setFileExt] = useState<FileExt>(initialFile.ext)
   const [content, setContent] = useState(initialContent)
+  // Markdown 分屏：桌面端默认显示预览，移动端默认隐藏
+  const [previewVisible, setPreviewVisible] = useState(true)
+  // 移动端 Markdown Tab：'edit' | 'preview'
+  const [mobileTab, setMobileTab] = useState<'edit' | 'preview'>('edit')
+
   const filename = `${basename}.${fileExt}`
   const basenameValid = BASENAME_RE.test(basename)
   const canSave = !saving && basenameValid && content.length > 0
+  const isMarkdown = fileExt === 'md'
+  const isJson = fileExt === 'json'
+
+  // JSON 一键格式化（解析后 2 空格缩进重新输出）
+  const handleFormatJson = () => {
+    try {
+      setContent(JSON.stringify(JSON.parse(content), null, 2))
+    } catch {
+      // 解析失败时静默：保存时后端会再校验并报错
+    }
+  }
 
   const handleSave = () => {
     if (!canSave) return
     onSave({ filename, content })
   }
+
+  const editorFallback = (
+    <div className="flex h-[400px] items-center justify-center rounded-md border bg-muted/30 text-sm text-muted-foreground">
+      加载编辑器中…
+    </div>
+  )
 
   return (
     <Card>
@@ -161,16 +194,147 @@ function FileEditorForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="file-content">内容</Label>
-          <Textarea
-            id="file-content"
-            placeholder={'在此输入文件内容…'}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            rows={14}
-            className="font-mono text-sm"
-            spellCheck={false}
-          />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Label>内容</Label>
+            <div className="flex gap-2">
+              {isJson && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleFormatJson}
+                  title="格式化 JSON"
+                  type="button"
+                >
+                  <Wand2 className="mr-1.5 h-3.5 w-3.5" />
+                  格式化
+                </Button>
+              )}
+              {isMarkdown && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setPreviewVisible((v) => !v)}
+                  title="切换预览（桌面分屏）"
+                  type="button"
+                  className="hidden md:inline-flex"
+                >
+                  {previewVisible ? (
+                    <>
+                      <EyeOff className="mr-1.5 h-3.5 w-3.5" />
+                      隐藏预览
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="mr-1.5 h-3.5 w-3.5" />
+                      显示预览
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Markdown 桌面端：可分屏；移动端：Tab 切换 */}
+          {isMarkdown ? (
+            <>
+              {/* 移动端 Tab */}
+              <div className="flex rounded-md border bg-muted/30 p-0.5 md:hidden">
+                <button
+                  type="button"
+                  className={cn(
+                    'flex-1 rounded px-3 py-1.5 text-xs font-medium transition-colors',
+                    mobileTab === 'edit'
+                      ? 'bg-background shadow-sm'
+                      : 'text-muted-foreground',
+                  )}
+                  onClick={() => setMobileTab('edit')}
+                >
+                  编辑
+                </button>
+                <button
+                  type="button"
+                  className={cn(
+                    'flex-1 rounded px-3 py-1.5 text-xs font-medium transition-colors',
+                    mobileTab === 'preview'
+                      ? 'bg-background shadow-sm'
+                      : 'text-muted-foreground',
+                  )}
+                  onClick={() => setMobileTab('preview')}
+                >
+                  预览
+                </button>
+              </div>
+
+              {/* 桌面端：分屏布局 */}
+              <div
+                className={cn(
+                  'hidden gap-3 md:grid',
+                  previewVisible ? 'md:grid-cols-2' : 'md:grid-cols-1',
+                )}
+              >
+                <Suspense fallback={editorFallback}>
+                  <CodeEditor
+                    value={content}
+                    onChange={setContent}
+                    language="md"
+                    height={400}
+                  />
+                </Suspense>
+                {previewVisible && (
+                  <div className="overflow-hidden rounded-md border bg-background">
+                    <div className="h-[400px] overflow-auto">
+                      <Suspense
+                        fallback={
+                          <div className="p-4 text-sm text-muted-foreground">
+                            加载预览…
+                          </div>
+                        }
+                      >
+                        <MarkdownPreview content={content} />
+                      </Suspense>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 移动端：仅显示当前 Tab */}
+              <div className="md:hidden">
+                {mobileTab === 'edit' ? (
+                  <Suspense fallback={editorFallback}>
+                    <CodeEditor
+                      value={content}
+                      onChange={setContent}
+                      language="md"
+                      height={360}
+                    />
+                  </Suspense>
+                ) : (
+                  <div className="overflow-hidden rounded-md border bg-background">
+                    <div className="h-[360px] overflow-auto">
+                      <Suspense
+                        fallback={
+                          <div className="p-4 text-sm text-muted-foreground">
+                            加载预览…
+                          </div>
+                        }
+                      >
+                        <MarkdownPreview content={content} />
+                      </Suspense>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <Suspense fallback={editorFallback}>
+              <CodeEditor
+                value={content}
+                onChange={setContent}
+                language={fileExt}
+                height={400}
+              />
+            </Suspense>
+          )}
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row">

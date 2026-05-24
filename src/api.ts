@@ -7,7 +7,6 @@ import type {
   ImportMode,
   ImportResult,
   Project,
-  ProjectCorsConfig,
   SaveFileRequest,
 } from '@/types'
 
@@ -145,6 +144,18 @@ export function setupAdminToken(token: string): Promise<{ ok: true }> {
   })
 }
 
+// 修改管理员密码：需要旧密码 + 新密码，成功后服务端会刷新存储的 hash
+// 注意：调用方负责在成功后调用 setToken(newPassword) 更新本地缓存
+export function changeAdminPassword(
+  oldPassword: string,
+  newPassword: string,
+): Promise<{ ok: true }> {
+  return apiFetch<{ ok: true }>('/admin-api/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ oldPassword, newPassword }),
+  })
+}
+
 export function createProject(
   req: CreateProjectRequest,
 ): Promise<{ ok: true; project: Project }> {
@@ -161,15 +172,16 @@ export function deleteProject(id: string): Promise<{ ok: true }> {
   )
 }
 
-export function updateProjectCors(
-  projectId: string,
-  cors: ProjectCorsConfig,
+// 更新项目元信息：name 可选，newId 可选（若与原 id 不同则会触发后端的 ID 迁移）
+export function updateProject(
+  id: string,
+  req: { name?: string; newId?: string },
 ): Promise<{ ok: true; project: Project }> {
   return apiFetch<{ ok: true; project: Project }>(
-    `/admin-api/project-cors/${encodeURIComponent(projectId)}`,
+    `/admin-api/projects/${encodeURIComponent(id)}`,
     {
       method: 'PUT',
-      body: JSON.stringify(cors),
+      body: JSON.stringify(req),
     },
   )
 }

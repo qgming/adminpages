@@ -9,7 +9,8 @@
    浅色：primary = green-600 (oklch ~ 0.626 0.18 142)
    深色：primary = green-500 (oklch ~ 0.72 0.18 142) */
 :root {
-  --background: oklch(1 0 0);
+  /* 浅色背景采用 Apple 风中性灰白 #f5f5f7，营造卡片浮在浅灰底色之上的层次感 */
+  --background: oklch(0.968 0.002 286);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
@@ -28,7 +29,8 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.626 0.18 142);
-  --radius: 0.625rem;
+  /* 圆角基准：从 10px 增大到 14px，让所有控件（按钮/输入框/弹窗）更圆润 */
+  --radius: 0.875rem;
   --chart-1: oklch(0.626 0.18 142);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -148,6 +150,130 @@
       padding-inline: 2rem;
     }
   }
+}
+
+/* Markdown 预览基础样式：替代 @tailwindcss/typography，避免额外依赖
+   只为常见元素提供合理的间距、字号与代码块外观 */
+.markdown-body {
+  color: var(--foreground);
+  line-height: 1.6;
+  word-wrap: break-word;
+}
+.markdown-body > *:first-child {
+  margin-top: 0;
+}
+.markdown-body > *:last-child {
+  margin-bottom: 0;
+}
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  font-weight: 600;
+  margin: 1.5em 0 0.5em;
+  line-height: 1.3;
+}
+.markdown-body h1 {
+  font-size: 1.5rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.3em;
+}
+.markdown-body h2 {
+  font-size: 1.25rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.2em;
+}
+.markdown-body h3 {
+  font-size: 1.1rem;
+}
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  font-size: 1rem;
+}
+.markdown-body p,
+.markdown-body ul,
+.markdown-body ol,
+.markdown-body blockquote,
+.markdown-body pre,
+.markdown-body table {
+  margin: 0.75em 0;
+}
+.markdown-body ul,
+.markdown-body ol {
+  padding-left: 1.5em;
+}
+.markdown-body ul {
+  list-style: disc;
+}
+.markdown-body ol {
+  list-style: decimal;
+}
+.markdown-body li + li {
+  margin-top: 0.25em;
+}
+.markdown-body a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.markdown-body strong {
+  font-weight: 600;
+}
+.markdown-body em {
+  font-style: italic;
+}
+.markdown-body blockquote {
+  border-left: 3px solid var(--border);
+  padding-left: 1em;
+  color: var(--muted-foreground);
+}
+.markdown-body code {
+  font-family:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
+    monospace;
+  background-color: var(--muted);
+  padding: 0.15em 0.4em;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+}
+.markdown-body pre {
+  background-color: var(--muted);
+  padding: 0.75em 1em;
+  border-radius: 0.375rem;
+  overflow-x: auto;
+}
+.markdown-body pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 0.85em;
+}
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.5em 0;
+}
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875em;
+}
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid var(--border);
+  padding: 0.4em 0.75em;
+  text-align: left;
+}
+.markdown-body th {
+  background-color: var(--muted);
+  font-weight: 600;
+}
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.375rem;
 }
 
 /* 首页大标题打字机光标闪烁（"丨" 字符）

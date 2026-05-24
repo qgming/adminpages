@@ -3,6 +3,7 @@
 // 路由：
 //   GET    /admin-api/projects           列出全部项目
 //   POST   /admin-api/projects           创建项目（body: { id, name }）
+//   PUT    /admin-api/projects/<id>      更新项目（body: { name?, newId? }）
 //   DELETE /admin-api/projects/<id>      删除项目（连带其下所有文件）
 //
 //   GET    /admin-api/files/<id>         列出项目下的文件
@@ -19,7 +20,6 @@ import type {
   ImportRequest,
   ImportResult,
   Project,
-  ProjectCorsConfig,
   SaveFileRequest,
 } from '../_types'
 import {
@@ -34,37 +34,8 @@ import {
   requireAuth,
   requireKvBinding,
   setupAdminToken,
+  changeAdminPassword,
 } from '../_utils'
-
-const DEFAULT_CORS_CONFIG: ProjectCorsConfig = {
-  enabled: true,
-  allowAll: true,
-  origins: [],
-}
-
-function normalizeOrigins(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-  const seen = new Set<string>()
-  const origins: string[] = []
-  for (const item of value) {
-    if (typeof item !== 'string') continue
-    const origin = item.trim()
-    if (!origin || seen.has(origin)) continue
-    seen.add(origin)
-    origins.push(origin)
-  }
-  return origins.slice(0, 50)
-}
-
-function normalizeCorsConfig(value: unknown): ProjectCorsConfig {
-  if (!value || typeof value !== 'object') return { ...DEFAULT_CORS_CONFIG }
-  const raw = value as Partial<ProjectCorsConfig>
-  return {
-    enabled: typeof raw.enabled === 'boolean' ? raw.enabled : true,
-    allowAll: typeof raw.allowAll === 'boolean' ? raw.allowAll : true,
-    origins: normalizeOrigins(raw.origins),
-  }
-}
 
 // 取出 [[route]] 的所有段
 function getSegments(raw: string | string[] | undefined): string[] {
@@ -83,14 +54,12 @@ async function readProject(
     const data = JSON.parse(raw) as {
       name?: unknown
       createdAt?: unknown
-      cors?: unknown
     }
     if (typeof data.name === 'string' && typeof data.createdAt === 'number') {
       return {
         id,
         name: data.name,
         createdAt: data.createdAt,
-        cors: normalizeCorsConfig(data.cors),
       }
     }
   } catch {
@@ -149,13 +118,15 @@ async function createProject(
     id,
     name: name.trim(),
     createdAt: Date.now(),
-    cors: { ...DEFAULT_CORS_CONFIG },
   }
   await env.KV_BINDING.put(projectKey(id), JSON.stringify(project))
   return jsonResponse({ ok: true, project })
 }
 
-async function updateProjectCors(
+// 更新项目：支持改名与改 ID
+// 改 ID 的代价较大：需要把 file:<oldId>:* 全部迁移到 file:<newId>:*，再删除旧条目和旧 proj:<oldId>
+// 失败语义：迁移失败时不回滚（KV 没有事务），但只要新 ID 校验通过且无冲突，重试是安全的
+async function updateProject(
   request: Request,
   env: Env,
   projectId: string,
@@ -168,17 +139,99 @@ async function updateProjectCors(
     return jsonResponse({ error: '项目不存在' }, 404)
   }
 
-  let body: unknown
+  let body: { name?: unknown; newId?: unknown }
   try {
-    body = await request.json()
+    body = (await request.json()) as {
+      name?: unknown
+      newId?: unknown
+    }
   } catch {
     return jsonResponse({ error: '请求体不是合法 JSON' }, 400)
   }
 
-  const cors = normalizeCorsConfig(body)
-  const project: Project = { ...proj, cors }
-  await env.KV_BINDING.put(projectKey(projectId), JSON.stringify(project))
-  return jsonResponse({ ok: true, project })
+  // 解析新值；未传字段视为不变
+  const nextName =
+    typeof body.name === 'string' ? body.name.trim() : proj.name
+  const nextId =
+    typeof body.newId === 'string' ? body.newId.trim() : projectId
+
+  if (!isValidProjectName(nextName)) {
+    return jsonResponse({ error: '项目名称必须是 1-32 位非空字符' }, 400)
+  }
+  if (!isValidProjectId(nextId)) {
+    return jsonResponse(
+      {
+        error:
+          '项目 ID 只允许小写字母、数字、下划线、连字符（首字符必须是字母或数字，1-32 位），且不能是保留字',
+      },
+      400,
+    )
+  }
+
+  // 仅改名：直接覆盖即可
+  if (nextId === projectId) {
+    if (nextName === proj.name) {
+      return jsonResponse({ ok: true, project: proj })
+    }
+    const updated: Project = { ...proj, name: nextName }
+    await env.KV_BINDING.put(projectKey(projectId), JSON.stringify(updated))
+    return jsonResponse({ ok: true, project: updated })
+  }
+
+  // 改 ID：先校验新 ID 不存在
+  const existing = await env.KV_BINDING.get(projectKey(nextId))
+  if (existing) {
+    return jsonResponse({ error: '目标项目 ID 已存在' }, 409)
+  }
+
+  // 迁移所有文件：读出旧 file:<oldId>:* 全部，按新键写入；旧键稍后清理
+  // 注意：KV 没有原子事务，过程中失败会有部分新键写入但旧键还在的不一致；
+  //       由于新键正确写入，且旧 proj 元信息此时未变，重试整个 update 仍是安全的
+  const filesToMigrate: { newKey: string; oldKey: string; content: string }[] =
+    []
+  let cursor: string | undefined
+  for (;;) {
+    const page = await env.KV_BINDING.list({
+      prefix: fileKeyPrefix(projectId),
+      cursor,
+      limit: 1000,
+    })
+    for (const key of page.keys) {
+      const filename = key.name.slice(fileKeyPrefix(projectId).length)
+      if (!filename) continue
+      const content = await env.KV_BINDING.get(key.name)
+      if (content === null) continue
+      filesToMigrate.push({
+        newKey: fileKey(nextId, filename),
+        oldKey: key.name,
+        content,
+      })
+    }
+    if (page.list_complete) break
+    cursor = page.cursor
+  }
+
+  // 写入新键
+  await Promise.all(
+    filesToMigrate.map((f) => env.KV_BINDING.put(f.newKey, f.content)),
+  )
+
+  // 写入新 proj 元数据
+  const updated: Project = {
+    id: nextId,
+    name: nextName,
+    createdAt: proj.createdAt,
+  }
+  await env.KV_BINDING.put(projectKey(nextId), JSON.stringify(updated))
+
+  // 清理旧键（先文件后 proj 元数据；如果中途失败，下次仍能通过 listProjects 看到旧项目空壳，
+  //   用户可以手动删除）
+  await Promise.all(
+    filesToMigrate.map((f) => env.KV_BINDING.delete(f.oldKey)),
+  )
+  await env.KV_BINDING.delete(projectKey(projectId))
+
+  return jsonResponse({ ok: true, project: updated })
 }
 
 async function deleteProject(
@@ -345,7 +398,6 @@ async function exportAll(env: Env): Promise<Response> {
       id: proj.id,
       name: proj.name,
       createdAt: proj.createdAt,
-      cors: proj.cors,
       files,
     })
   }
@@ -421,7 +473,7 @@ async function importAll(
       result.errors.push('跳过无效的项目条目')
       continue
     }
-    const { id, name, createdAt, cors, files } = exported
+    const { id, name, createdAt, files } = exported
 
     if (!isValidProjectId(id)) {
       result.errors.push(`项目 ID 不合法: ${String(id)}`)
@@ -449,7 +501,6 @@ async function importAll(
         typeof createdAt === 'number' && createdAt > 0
           ? createdAt
           : Date.now(),
-      cors: normalizeCorsConfig(cors),
     }
     await env.KV_BINDING.put(projectKey(id), JSON.stringify(project))
     result.imported.projects += 1
@@ -514,6 +565,23 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
   const unauthorized = await requireAuth(request, env)
   if (unauthorized) return unauthorized
 
+  if (
+    resource === 'change-password' &&
+    segments.length === 1 &&
+    method === 'POST'
+  ) {
+    let body: { oldPassword?: unknown; newPassword?: unknown }
+    try {
+      body = (await request.json()) as {
+        oldPassword?: unknown
+        newPassword?: unknown
+      }
+    } catch {
+      return jsonResponse({ error: '请求体不是合法 JSON' }, 400)
+    }
+    return changeAdminPassword(env, body.oldPassword, body.newPassword)
+  }
+
   if (resource === 'projects') {
     if (segments.length === 1 && method === 'GET') {
       return listProjects(env)
@@ -521,13 +589,12 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
     if (segments.length === 1 && method === 'POST') {
       return createProject(request, env)
     }
+    if (segments.length === 2 && method === 'PUT') {
+      return updateProject(request, env, idSegment)
+    }
     if (segments.length === 2 && method === 'DELETE') {
       return deleteProject(env, idSegment)
     }
-  }
-
-  if (resource === 'project-cors' && segments.length === 2) {
-    if (method === 'PUT') return updateProjectCors(request, env, idSegment)
   }
 
   if (resource === 'files' && segments.length === 2) {

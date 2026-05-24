@@ -54,6 +54,46 @@ export async function setupAdminToken(
   return jsonResponse({ ok: true })
 }
 
+// 修改管理员密码：需要校验旧密码后写入新密码 hash
+// 仅在通过 KV 存储密码时可用；若 ADMIN_TOKEN 通过环境变量配置则禁止改密
+export async function changeAdminPassword(
+  env: Env,
+  oldPassword: unknown,
+  newPassword: unknown,
+): Promise<Response> {
+  if (env.ADMIN_TOKEN) {
+    return jsonResponse(
+      { error: '当前通过环境变量配置密码，无法在线修改' },
+      409,
+    )
+  }
+  const kvMissing = requireKvBinding(env)
+  if (kvMissing) return kvMissing
+  if (typeof oldPassword !== 'string' || !oldPassword) {
+    return jsonResponse({ error: '请输入当前密码' }, 400)
+  }
+  if (
+    typeof newPassword !== 'string' ||
+    newPassword.trim().length < MIN_ADMIN_TOKEN_LENGTH
+  ) {
+    return jsonResponse({ error: '新密码至少需要 8 位' }, 400)
+  }
+  const storedHash = await env.KV_BINDING.get(ADMIN_TOKEN_HASH_KEY)
+  if (!storedHash) {
+    return jsonResponse({ error: '尚未初始化密码', setupRequired: true }, 400)
+  }
+  const oldHash = await sha256Hex(oldPassword)
+  if (!equalText(oldHash, storedHash)) {
+    return jsonResponse({ error: '当前密码不正确' }, 401)
+  }
+  const trimmed = newPassword.trim()
+  if (equalText(await sha256Hex(trimmed), storedHash)) {
+    return jsonResponse({ error: '新密码不能与当前密码相同' }, 400)
+  }
+  await env.KV_BINDING.put(ADMIN_TOKEN_HASH_KEY, await sha256Hex(trimmed))
+  return jsonResponse({ ok: true })
+}
+
 // 校验 Bearer Token；通过返回 null，否则返回 401 Response
 export async function requireAuth(
   request: Request,

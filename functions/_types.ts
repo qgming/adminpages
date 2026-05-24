@@ -4,19 +4,11 @@
 // 文件扩展名（决定返回的 Content-Type）
 export type FileExt = 'json' | 'md' | 'html'
 
-// 项目级 JSON 跨域配置
-export interface ProjectCorsConfig {
-  enabled: boolean
-  allowAll: boolean
-  origins: string[]
-}
-
 // 项目元信息
 export interface Project {
   id: string // 英文 ID（路径段）
   name: string // 中文显示名
   createdAt: number // 创建时间戳（毫秒）
-  cors: ProjectCorsConfig
 }
 
 // 项目下的单个文件
@@ -46,7 +38,6 @@ export interface ExportedProject {
   id: string
   name: string
   createdAt: number
-  cors: ProjectCorsConfig
   files: { filename: string; content: string }[]
 }
 

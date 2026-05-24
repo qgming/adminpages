@@ -1,11 +1,26 @@
-// 导出/导入工具栏：右上角两个按钮 + 导入对话框 + 替换模式二次确认
+// 导出/导入：提供两种 UI 形态
+//   1) ExportImportBar  - 两个按钮 + 弹窗（原项目页右上角工具栏样式）
+//   2) BackupRestoreCard - 设置页里的备份恢复卡片（上下堆叠两个全宽按钮）
+// 两者共享同一个 ImportDialog 与导出逻辑
 import { useRef, useState } from 'react'
-import { Download, Upload, FileJson, AlertTriangle } from 'lucide-react'
+import {
+  Download,
+  Upload,
+  FileJson,
+  AlertTriangle,
+  DatabaseBackup,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import type { ExportSnapshot, ImportMode, ImportResult } from '@/types'
 import { exportAll, importAll, UnauthorizedError } from '@/api'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -25,13 +40,6 @@ import {
   AlertDialogMedia,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-
-interface Props {
-  // 导入成功后刷新项目列表
-  onImported: () => void | Promise<void>
-  // 401 时复用 admin 页面的 token 弹框
-  onUnauthorized: (setupRequired: boolean) => void
-}
 
 // 给文件名带上日期，便于多次备份归档
 function buildExportFilename(): string {
@@ -60,22 +68,33 @@ function isLikelySnapshot(value: unknown): value is ExportSnapshot {
   return v.version === 1 && Array.isArray(v.projects)
 }
 
-export function ExportImportBar({ onImported, onUnauthorized }: Props) {
+// 把后端返回的 ImportResult 转成 toast
+function reportImportResult(result: ImportResult) {
+  const { imported, skipped, errors } = result
+  const summary =
+    `导入 ${imported.projects} 个项目 / ${imported.files} 个文件` +
+    (skipped.projects > 0 ? `，跳过 ${skipped.projects} 个项目` : '')
+  if (errors.length === 0) {
+    toast.success(summary)
+  } else {
+    toast.warning(`${summary}，${errors.length} 条错误`, {
+      description: errors.slice(0, 5).join('；'),
+    })
+  }
+}
+
+interface CommonProps {
+  // 导入成功后刷新数据
+  onImported: () => void | Promise<void>
+  // 401 时复用页面的 token 弹框
+  onUnauthorized: (setupRequired: boolean) => void
+}
+
+// 共享 hook：返回导出状态、弹窗状态以及对应的操作函数
+function useBackupRestore({ onImported, onUnauthorized }: CommonProps) {
   const [exporting, setExporting] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
-  const [importing, setImporting] = useState(false)
-  const [confirmReplaceOpen, setConfirmReplaceOpen] = useState(false)
 
-  // 用户选择的导入文件
-  const [pickedFile, setPickedFile] = useState<File | null>(null)
-  const [pickedSnapshot, setPickedSnapshot] = useState<ExportSnapshot | null>(
-    null,
-  )
-  const [parseError, setParseError] = useState<string | null>(null)
-  const [mode, setMode] = useState<ImportMode>('overwrite')
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  // ===== 导出 =====
   const handleExport = async () => {
     setExporting(true)
     try {
@@ -102,7 +121,40 @@ export function ExportImportBar({ onImported, onUnauthorized }: Props) {
     }
   }
 
-  // ===== 导入：选择文件 =====
+  return {
+    exporting,
+    handleExport,
+    importOpen,
+    setImportOpen,
+    onImported,
+    onUnauthorized,
+  }
+}
+
+// ========== 公共导入对话框 ==========
+interface ImportDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onImported: () => void | Promise<void>
+  onUnauthorized: (setupRequired: boolean) => void
+}
+
+function ImportDialog({
+  open,
+  onOpenChange,
+  onImported,
+  onUnauthorized,
+}: ImportDialogProps) {
+  const [importing, setImporting] = useState(false)
+  const [confirmReplaceOpen, setConfirmReplaceOpen] = useState(false)
+  const [pickedFile, setPickedFile] = useState<File | null>(null)
+  const [pickedSnapshot, setPickedSnapshot] = useState<ExportSnapshot | null>(
+    null,
+  )
+  const [parseError, setParseError] = useState<string | null>(null)
+  const [mode, setMode] = useState<ImportMode>('overwrite')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const resetPicked = () => {
     setPickedFile(null)
     setPickedSnapshot(null)
@@ -131,14 +183,13 @@ export function ExportImportBar({ onImported, onUnauthorized }: Props) {
     }
   }
 
-  // ===== 导入：提交 =====
   const doImport = async () => {
     if (!pickedSnapshot) return
     setImporting(true)
     try {
       const { result } = await importAll(pickedSnapshot, mode)
       reportImportResult(result)
-      setImportOpen(false)
+      onOpenChange(false)
       resetPicked()
       setMode('overwrite')
       await onImported()
@@ -162,23 +213,6 @@ export function ExportImportBar({ onImported, onUnauthorized }: Props) {
     void doImport()
   }
 
-  // 把后端返回的 ImportResult 转成 toast
-  const reportImportResult = (result: ImportResult) => {
-    const { imported, skipped, errors } = result
-    const summary =
-      `导入 ${imported.projects} 个项目 / ${imported.files} 个文件` +
-      (skipped.projects > 0
-        ? `，跳过 ${skipped.projects} 个项目`
-        : '')
-    if (errors.length === 0) {
-      toast.success(summary)
-    } else {
-      toast.warning(`${summary}，${errors.length} 条错误`, {
-        description: errors.slice(0, 5).join('；'),
-      })
-    }
-  }
-
   const projectCount = pickedSnapshot?.projects.length ?? 0
   const fileCount =
     pickedSnapshot?.projects.reduce(
@@ -188,30 +222,11 @@ export function ExportImportBar({ onImported, onUnauthorized }: Props) {
 
   return (
     <>
-      <Button
-        variant="outline"
-        onClick={handleExport}
-        disabled={exporting}
-        title="导出全部数据"
-      >
-        <Download className="h-4 w-4 sm:mr-2" />
-        <span className="hidden sm:inline">{exporting ? '导出中…' : '导出'}</span>
-      </Button>
-
-      <Button
-        variant="outline"
-        onClick={() => setImportOpen(true)}
-        title="从备份文件导入"
-      >
-        <Upload className="h-4 w-4 sm:mr-2" />
-        <span className="hidden sm:inline">导入</span>
-      </Button>
-
       <Dialog
-        open={importOpen}
-        onOpenChange={(open) => {
-          setImportOpen(open)
-          if (!open) {
+        open={open}
+        onOpenChange={(o) => {
+          onOpenChange(o)
+          if (!o) {
             resetPicked()
             setMode('overwrite')
           }
@@ -318,7 +333,7 @@ export function ExportImportBar({ onImported, onUnauthorized }: Props) {
           <DialogFooter>
             <Button
               variant="ghost"
-              onClick={() => setImportOpen(false)}
+              onClick={() => onOpenChange(false)}
               disabled={importing}
             >
               取消
@@ -363,5 +378,99 @@ export function ExportImportBar({ onImported, onUnauthorized }: Props) {
         </AlertDialogContent>
       </AlertDialog>
     </>
+  )
+}
+
+// ========== 形态 1：工具栏按钮组 ==========
+export function ExportImportBar(props: CommonProps) {
+  const { exporting, handleExport, importOpen, setImportOpen } =
+    useBackupRestore(props)
+
+  return (
+    <>
+      <Button
+        variant="outline"
+        onClick={handleExport}
+        disabled={exporting}
+        title="导出全部数据"
+      >
+        <Download className="h-4 w-4 sm:mr-2" />
+        <span className="hidden sm:inline">
+          {exporting ? '导出中…' : '导出'}
+        </span>
+      </Button>
+
+      <Button
+        variant="outline"
+        onClick={() => setImportOpen(true)}
+        title="从备份文件导入"
+      >
+        <Upload className="h-4 w-4 sm:mr-2" />
+        <span className="hidden sm:inline">导入</span>
+      </Button>
+
+      <ImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onImported={props.onImported}
+        onUnauthorized={props.onUnauthorized}
+      />
+    </>
+  )
+}
+
+// ========== 形态 2：设置页备份恢复卡片 ==========
+export function BackupRestoreCard(props: CommonProps) {
+  const { exporting, handleExport, importOpen, setImportOpen } =
+    useBackupRestore(props)
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <DatabaseBackup className="h-5 w-5 text-primary" />
+          备份与恢复
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            导出当前所有项目和文件为 JSON 备份文件，可离线保存或迁移到其他实例。
+          </p>
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={handleExport}
+            disabled={exporting}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            {exporting ? '导出中…' : '导出全部数据'}
+          </Button>
+        </div>
+
+        <div className="border-t" />
+
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            从备份文件恢复数据，支持「合并」「覆盖」「替换」三种模式。
+          </p>
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => setImportOpen(true)}
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            导入备份
+          </Button>
+        </div>
+      </CardContent>
+
+      <ImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onImported={props.onImported}
+        onUnauthorized={props.onUnauthorized}
+      />
+    </Card>
   )
 }

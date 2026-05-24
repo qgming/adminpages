@@ -1,6 +1,6 @@
 // 项目列表卡片：信息区 + 底部按钮组（打开 / 删除）
 import { Link } from 'react-router-dom'
-import { CalendarClock, FolderOpen, X } from 'lucide-react'
+import { FolderOpen, X } from 'lucide-react'
 import type { Project } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -20,12 +20,6 @@ interface Props {
   projects: Project[]
   loading: boolean
   onDelete: (project: Project) => void
-}
-
-function formatDate(ts: number): string {
-  const d = new Date(ts)
-  const pad = (n: number) => n.toString().padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
 export function ProjectList({ projects, loading, onDelete }: Props) {
@@ -69,25 +63,15 @@ function ProjectCard({
         <DeleteProjectButton project={project} onDelete={onDelete} />
       </div>
 
-      {/* 信息区 */}
+      {/* 信息区：项目名 + ID，无图标无时间 */}
       <div className="flex flex-col gap-4 px-5 pt-5 pr-14">
-        <div className="flex items-start gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <FolderOpen className="h-5 w-5" />
-          </div>
-          <div className="min-w-0 pt-0.5">
-            <h2 className="truncate text-base font-semibold leading-tight">
-              {project.name}
-            </h2>
-            <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
-              /{project.id}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <CalendarClock className="h-3.5 w-3.5" />
-          <span>{formatDate(project.createdAt)}</span>
+        <div className="min-w-0">
+          <h2 className="truncate text-lg font-semibold leading-tight">
+            {project.name}
+          </h2>
+          <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
+            /{project.id}
+          </p>
         </div>
       </div>
 

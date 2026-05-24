@@ -233,9 +233,10 @@ export function HomePage() {
 
       <main className="container pb-10 pt-10 sm:pb-12 sm:pt-24">
         <div className="mx-auto max-w-5xl space-y-12 sm:space-y-16">
-          {/* 大标题 + 亮点句 */}
+          {/* 大标题 + 亮点句
+              min-h-[1em] 防止打字机清空瞬间标题高度塌缩、下方内容抖动 */}
           <div className="space-y-4 text-center">
-            <h1 className="text-3xl font-bold tracking-tight sm:text-5xl md:text-7xl">
+            <h1 className="min-h-[1em] text-3xl font-bold leading-tight tracking-tight sm:text-5xl md:text-7xl">
               <span aria-label={HERO_TITLE}>
                 {chars.slice(0, Math.max(shown, 0)).join('')}
                 <span
@@ -260,7 +261,7 @@ export function HomePage() {
             {FLOW_ROWS.map(({ label, icon: Icon }, i) => (
               <div
                 key={`S-${label}`}
-                className="absolute flex flex-col items-center justify-center gap-2 rounded-xl border bg-card text-card-foreground shadow-sm"
+                className="absolute flex flex-col items-center justify-center gap-2 rounded-2xl bg-card text-card-foreground shadow-sm ring-1 ring-foreground/10"
                 style={{
                   left: G.sourcePos[i].x,
                   top: G.sourcePos[i].y,
@@ -280,7 +281,7 @@ export function HomePage() {
             {FLOW_ROWS.map(({ label, urlPrefix, urlFile }, i) => (
               <div
                 key={`T-${label}`}
-                className="absolute flex flex-col items-center justify-center gap-1 rounded-xl border bg-card px-2 text-card-foreground shadow-sm"
+                className="absolute flex flex-col items-center justify-center gap-1 rounded-2xl bg-card px-2 text-card-foreground shadow-sm ring-1 ring-foreground/10"
                 style={{
                   left: G.targetPos[i].x,
                   top: G.targetPos[i].y,
@@ -295,7 +296,7 @@ export function HomePage() {
 
             {/* 中心圆：菟丝边缘服务（仅显示 Logo） */}
             <div
-              className="absolute flex items-center justify-center rounded-full border bg-card text-primary shadow-md"
+              className="absolute flex items-center justify-center rounded-full bg-card text-primary shadow-md ring-1 ring-foreground/10"
               style={{
                 left: G.cx - G.r,
                 top: G.cy - G.r,

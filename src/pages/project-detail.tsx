@@ -8,10 +8,8 @@ import {
   saveFile,
   deleteFile,
   fetchPublicFile,
-  updateProjectCors,
   getToken,
   getAuthStatus,
-  clearToken,
   UnauthorizedError,
 } from '@/api'
 import { Button } from '@/components/ui/button'
@@ -25,10 +23,10 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { TokenPrompt } from '@/components/token-prompt'
-import { AdminHeader } from '@/components/admin-header'
+import { AdminShell } from '@/components/admin-shell'
 import { FileList } from '@/components/file-list'
 import { FileEditor } from '@/components/file-editor'
-import { CorsSettings } from '@/components/cors-settings'
+import { ProjectInfoCard } from '@/components/project-info-card'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'sonner'
 
@@ -40,11 +38,9 @@ export function ProjectDetailPage() {
   const [items, setItems] = useState<FileItem[]>([])
   const [loading, setLoading] = useState(() => !!getToken())
   const [saving, setSaving] = useState(false)
-  const [savingCors, setSavingCors] = useState(false)
   const [tokenOpen, setTokenOpen] = useState(() => !getToken())
   const [setupRequired, setSetupRequired] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
-  const [loggedIn, setLoggedIn] = useState(() => !!getToken())
   const [editing, setEditing] = useState<{
     item: FileItem
     content: string
@@ -55,20 +51,8 @@ export function ProjectDetailPage() {
     setSetupRequired(setup)
     setAuthError(msg)
     setTokenOpen(true)
-    setLoggedIn(false)
     toast.error(msg)
   }, [])
-
-  const handleLogout = useCallback(() => {
-    clearToken()
-    setProject(null)
-    setItems([])
-    setLoggedIn(false)
-    setTokenOpen(true)
-    setAuthError(null)
-    toast.success('已登出')
-    navigate('/admin')
-  }, [navigate])
 
   const loadList = useCallback(async () => {
     if (!projectId) return
@@ -77,7 +61,6 @@ export function ProjectDetailPage() {
       const { project, items } = await listFiles(projectId)
       setProject(project)
       setItems(Array.isArray(items) ? items : [])
-      setLoggedIn(true)
     } catch (e) {
       if (e instanceof UnauthorizedError) {
         handleUnauthorized(e.setupRequired)
@@ -141,24 +124,6 @@ export function ProjectDetailPage() {
     }
   }
 
-  const handleSaveCors = async (cors: Project['cors']) => {
-    if (!projectId) return
-    setSavingCors(true)
-    try {
-      const { project } = await updateProjectCors(projectId, cors)
-      setProject(project)
-      toast.success(`已更新 ${projectId} 的跨域配置`)
-    } catch (e) {
-      if (e instanceof UnauthorizedError) {
-        handleUnauthorized(e.setupRequired)
-      } else {
-        toast.error(`保存跨域配置失败: ${(e as Error).message}`)
-      }
-    } finally {
-      setSavingCors(false)
-    }
-  }
-
   // 编辑：从公开 URL 抓取最新内容
   const handleEdit = async (item: FileItem) => {
     try {
@@ -170,83 +135,78 @@ export function ProjectDetailPage() {
     }
   }
 
-  const breadcrumbs = project
-    ? [{ label: `${project.id}（${project.name}）` }]
-    : [{ label: projectId }]
-
   return (
-    <div className="min-h-dvh bg-background">
-      <AdminHeader
-        breadcrumbs={breadcrumbs}
-        loggedIn={loggedIn}
-        onLogout={handleLogout}
-      />
+    <AdminShell>
+      <div className="px-4 py-5 sm:px-6 sm:py-8">
+        <div className="mx-auto max-w-6xl space-y-6 sm:space-y-8">
+          {/* 返回按钮独立一行 */}
+          <div>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => navigate('/admin')}
+              title="返回项目列表"
+              aria-label="返回项目列表"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </div>
 
-      <main className="container max-w-6xl space-y-6 py-5 sm:space-y-8 sm:py-8">
-        <div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate('/admin')}
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            返回项目列表
-          </Button>
-        </div>
-
-        <FileEditor
-          editing={editing}
-          saving={saving}
-          onSave={handleSave}
-          onCancel={() => setEditing(null)}
-        />
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Files className="h-5 w-5 text-primary" />
-              {project ? `${project.name} 的文件` : '文件列表'}
-              <Badge variant="secondary" aria-label={`文件数量 ${items.length}`}>
-                {items.length}
-              </Badge>
-            </CardTitle>
-            <CardDescription>
-              点击公开 URL 可直接预览，点编辑按钮可修改内容。
-            </CardDescription>
-            <CardAction>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={loadList}
-                disabled={loading}
-                title="刷新"
-                aria-label="刷新文件列表"
-              >
-                <RefreshCw
-                  className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`}
-                />
-              </Button>
-            </CardAction>
-          </CardHeader>
-          <CardContent>
-            <FileList
-              projectId={projectId}
-              items={items}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
+          {/* 项目信息卡片（可编辑名称与 ID）；project 还没加载时不渲染 */}
+          {project && (
+            <ProjectInfoCard
+              project={project}
+              onProjectUpdated={setProject}
+              onUnauthorized={handleUnauthorized}
             />
-          </CardContent>
-        </Card>
+          )}
 
-        {project && (
-          <CorsSettings
-            value={project.cors}
-            saving={savingCors}
-            onSave={handleSaveCors}
+          <FileEditor
+            editing={editing}
+            saving={saving}
+            onSave={handleSave}
+            onCancel={() => setEditing(null)}
           />
-        )}
-      </main>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Files className="h-5 w-5 text-primary" />
+                {project ? `${project.name} 的文件` : '文件列表'}
+                <Badge variant="secondary" aria-label={`文件数量 ${items.length}`}>
+                  {items.length}
+                </Badge>
+              </CardTitle>
+              <CardDescription>
+                点击公开 URL 可直接预览，点编辑按钮可修改内容。
+              </CardDescription>
+              <CardAction>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={loadList}
+                  disabled={loading}
+                  title="刷新"
+                  aria-label="刷新文件列表"
+                >
+                  <RefreshCw
+                    className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`}
+                  />
+                </Button>
+              </CardAction>
+            </CardHeader>
+            <CardContent>
+              <FileList
+                projectId={projectId}
+                items={items}
+                loading={loading}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
       <TokenPrompt
         open={tokenOpen}
@@ -257,6 +217,6 @@ export function ProjectDetailPage() {
         onErrorDismiss={() => setAuthError(null)}
       />
       <Toaster richColors position="top-right" />
-    </div>
+    </AdminShell>
   )
 }

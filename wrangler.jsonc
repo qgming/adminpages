@@ -1,9 +1,10 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "adminpages",
+  "name": "tusi",
   "compatibility_date": "2026-05-01",
-  "pages_build_output_dir": "dist",
-  // KV 绑定改由 Cloudflare Pages Dashboard 配置：
-  // Settings → Bindings → Add → KV namespace
-  // Variable name 必须填 KV_BINDING
+  "pages_build_output_dir": "dist"
+  // KV 绑定通过 Cloudflare Dashboard 配置，无需修改本文件：
+  //   Pages 项目 → Settings → Bindings → Add → KV namespace
+  //   Variable name 必须为 KV_BINDING
+  // 本地开发使用 `npm run pages:dev`（package.json 中已传入 --kv=KV_BINDING）
 }

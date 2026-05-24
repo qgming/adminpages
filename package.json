@@ -1,7 +1,7 @@
 {
   "name": "tusi",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,13 +9,22 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit && tsc -p functions/tsconfig.json --noEmit",
-    "pages:dev": "wrangler pages dev dist --kv=KV_BINDING"
+    "pages:dev": "wrangler pages dev dist --kv=KV_BINDING",
+    "deploy": "npm run build && wrangler pages deploy dist"
   },
   "dependencies": {
+    "@codemirror/lang-html": "^6.4.11",
+    "@codemirror/lang-json": "^6.0.2",
+    "@codemirror/lang-markdown": "^6.5.0",
+    "@codemirror/lint": "^6.9.6",
     "@fontsource-variable/geist": "^5.2.8",
+    "@types/dompurify": "^3.0.5",
+    "@uiw/react-codemirror": "^4.25.10",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "dompurify": "^3.4.5",
     "lucide-react": "^0.453.0",
+    "marked": "^18.0.4",
     "next-themes": "^0.4.6",
     "radix-ui": "^1.4.3",
     "react": "^19.2.5",

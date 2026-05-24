@@ -55,85 +55,136 @@
 
 ---
 
-## 部署指南
+## 🚀 部署指南
 
-使用 Cloudflare Pages 的 Git 集成，全程 **5 步**，无需修改任何代码。
+> ⏱ 预计耗时：约 **5 分钟** · ✅ 全程在浏览器完成，**无需修改任何代码**
 
-### 步骤 1 — Fork 仓库到你的 GitHub
+### 步骤 1 · Fork 本仓库
 
-打开本仓库，点击右上角 `Fork` 按钮，把仓库 fork 到你的账号下。
+打开本仓库 → 右上角 **Fork** → 选择你的 GitHub 账号。
 
-### 步骤 2 — 在 Cloudflare 连接 Git 仓库
+### 步骤 2 · 创建 KV 命名空间 (KV Namespace)
 
-```txt
-Workers & Pages → Create application → Pages → Connect to Git
-→ 选择你 fork 的仓库 → Begin setup
-```
-
-### 步骤 3 — 填写构建配置
-
-| 字段                     | 值              |
-| ------------------------ | --------------- |
-| Build command            | `npm run build` |
-| Build output directory   | `dist`          |
-| Root directory           | 留空（仓库根）  |
-| Deploy command           | 留空            |
-
-> ⚠ 不要填 `npx wrangler deploy`，那是普通 Workers 项目的部署命令。
-
-点击 `Save and Deploy`，等待首次构建完成（KV 还没绑定，访问 `/admin` 会报错，正常）。
-
-### 步骤 4 — 创建并绑定 KV 命名空间
-
-**A. 创建 KV 命名空间**
+进入 Cloudflare Dashboard，路径：
 
 ```txt
-Workers & Pages → KV → Create namespace
-Name: adminpages（名字随意）
+Storage & Databases (存储和数据库)
+   └─ Workers KV
+        └─ Create instance (创建实例)
 ```
 
-**B. 绑定到 Pages 项目**
+| 字段 (Field)          | 填写内容                         |
+| --------------------- | -------------------------------- |
+| Namespace name (名称) | `tusi`（任意名字，自己能认即可） |
 
-进入你刚才部署的 Pages 项目：
+### 步骤 3 · 连接 GitHub 仓库到 Pages
 
 ```txt
-Settings → Bindings → Add → KV namespace
+Workers & Pages (Workers 和 Pages)
+   └─ Create application (创建应用)
+        └─ Pages 标签
+             └─ Connect to Git (连接到 Git)
+                  └─ 选择 fork 的 tusi 仓库 → Begin setup (开始设置)
 ```
 
-| 字段           | 值                                      |
-| -------------- | --------------------------------------- |
-| Variable name  | `KV_BINDING` ← **必须用这个名字**       |
-| KV namespace   | 选择上一步创建的 `adminpages`           |
+构建配置 (Build settings)：
+
+| 字段 (Field)                      | 值              |
+| --------------------------------- | --------------- |
+| Build command (构建命令)          | `npm run build` |
+| Build output directory (输出目录) | `dist`          |
+| Root directory (根目录)           | 留空            |
+| Deploy command (部署命令)         | 留空 ⚠ 不要填   |
+
+点击 **Save and Deploy (保存并部署)**，等待首次构建完成。
+
+> ⚠ Deploy command 是普通 Workers 项目用的，Pages 项目留空即可。
+
+### 步骤 4 · 绑定 KV 命名空间 (Bind KV Namespace) ⭐
+
+> 这是最关键的一步，通过 Dashboard 绑定，**无需修改任何代码**。
+
+进入刚刚创建的 Pages 项目：
+
+```txt
+Settings (设置)
+   └─ Bindings (绑定)
+        └─ Add (添加)
+             └─ KV namespace (KV 命名空间)
+```
+
+| 字段 (Field)           | 填写内容                                        |
+| ---------------------- | ----------------------------------------------- |
+| Variable name (变量名) | `KV_BINDING` ← **必须严格写成这个，区分大小写** |
+| KV namespace           | 下拉选择步骤 2 创建的 `tusi`                    |
 
 > 代码读取的是 `env.KV_BINDING`，Variable name 写错就读不到 KV。
 
-### 步骤 5 — 重新部署并设置密码
+### 步骤 5 · 重新部署并设置管理员密码
 
-**A. 触发重新部署**（新增绑定后必须重部署才生效）
-
-```txt
-Deployments → 最新部署右侧 ⋯ → Retry deployment
-```
-
-也可以推送任意 commit 触发自动部署。
-
-**B. 设置管理员密码**
-
-部署成功后打开：
+绑定生效需要重新部署一次：
 
 ```txt
-https://你的域名/admin
+Deployments (部署记录)
+   └─ 最新部署右侧 ⋯
+        └─ Retry deployment (重试部署)
 ```
 
-按提示设置至少 8 位的管理员密码即可登录使用。
+部署完成后访问：
 
-> 如果 `/admin` 显示「KV_BINDING 未绑定」，回到步骤 4 检查 Variable name 是否拼写正确，并确认已重新部署。
+```txt
+https://<your-domain>/admin
+```
+
+按页面提示设置不少于 **8 位** 的管理员密码，登录即可使用。
 
 ---
 
-## 后台密码
+## 🛟 故障排查
 
-默认模式无需在部署前配置密码：首次访问 `/admin` 设置密码，SHA-256 哈希写入 KV。登录态只保存在当前页面内存中，刷新后需重新输入。
+### 访问 `/admin` 显示「KV_BINDING 未绑定」
+
+90% 的情况是步骤 4 没做或没生效。请检查：
+
+1. Variable name 是否**严格等于** `KV_BINDING`（区分大小写、不能加空格）
+2. KV namespace 是否选对了
+3. 添加绑定后**是否触发了重新部署**（Deployments → Retry deployment）
+
+### 设置密码后无法登录
+
+- 确认密码长度 ≥ 8 位
+- 浏览器禁用了 `localStorage`（无痕模式或某些隐私插件）会导致登录态无法保存
+- 如果你后来设置了 `ADMIN_TOKEN` Secret，**它会覆盖**你在网页里设的密码，请用 Secret 的值登录
+
+### 公开 URL 返回 404
+
+- 项目 ID 是否拼写正确？大小写敏感
+- 文件名包含扩展名了吗？例如 `/blog/post.md` 不是 `/blog/post`
+- 文件类型是否在支持范围内？目前仅 `.json` / `.md` / `.html`
+
+### 想用 Wrangler CLI 本地部署
+
+走 Git 集成不需要这一步。若你坚持用 CLI 直接推送，则需要本地填写 KV 命名空间 ID：
+
+```bash
+# 1. 创建 KV（已有则跳过，记下输出中的 id）
+npx wrangler kv namespace create tusi
+
+# 2. 把 id 填入 wrangler.jsonc：
+#    "kv_namespaces": [{ "binding": "KV_BINDING", "id": "<上一步的 id>" }]
+
+# 3. 构建并部署
+npm run build
+npx wrangler pages deploy dist --project-name=tusi
+```
+
+> 注意：CLI 部署写入 `wrangler.jsonc` 的 KV ID 仅本地生效，Dashboard Bindings 不会被覆盖。
+
+---
+
+## 🔐 后台密码
+
+默认模式无需在部署前配置密码：首次访问 `/admin` 设置密码，SHA-256 哈希写入 KV。登录态保存在浏览器 `localStorage`，7 天后自动过期。
 
 如需固定密码（例如多人协作或自动化），可在 Pages 项目中添加 Secret：
 
@@ -150,7 +201,7 @@ Value: 一串高强度密码
 ## 使用流程
 
 1. 打开 `/admin` 并登录
-2. 点击 `新建项目`，填写英文 ID 和中文名（例如 ID = `blog`）
+2. 点击 **新建项目**，填写英文 ID 和中文名（例如 ID = `blog`）
 3. 进入项目详情页
 4. 选择文件类型，填写文件名和内容，保存
 5. 按需调整该项目的 JSON 跨域配置
@@ -167,7 +218,7 @@ Value: 一串高强度密码
 
 ---
 
-## 数据备份
+## 💾 数据备份
 
 后台首页右上角有 **导出** / **导入** 按钮。
 
@@ -175,11 +226,11 @@ Value: 一串高强度密码
 
 **导入**：选择此前导出的 JSON 备份，提供三种模式：
 
-| 模式           | 行为                                                |
-| -------------- | --------------------------------------------------- |
-| 合并·跳过      | 同 ID 项目保持原样，仅导入新项目                    |
-| 合并·覆盖（推荐） | 同 ID 项目用备份内容覆盖，未在备份中的项目保留     |
-| 替换           | 清空全部后导入（管理员密码保留）⚠ **不可恢复**     |
+| 模式              | 行为                                           |
+| ----------------- | ---------------------------------------------- |
+| 合并·跳过         | 同 ID 项目保持原样，仅导入新项目               |
+| 合并·覆盖（推荐） | 同 ID 项目用备份内容覆盖，未在备份中的项目保留 |
+| 替换              | 清空全部后导入（管理员密码保留）⚠ **不可恢复** |
 
 > 替换模式会弹出二次确认。导入过程中无效项目/文件会被跳过并在结果中列出，不影响其他数据。
 
@@ -207,30 +258,31 @@ npm run pages:dev
 
 ### 常用脚本
 
-| 命令                | 作用            |
-| ------------------- | --------------- |
-| `npm run lint`      | ESLint 检查     |
-| `npm run typecheck` | 双重 TS 类型检查 |
-| `npm run build`     | 生产构建        |
+| 命令                | 作用                                 |
+| ------------------- | ------------------------------------ |
+| `npm run lint`      | ESLint 检查                          |
+| `npm run typecheck` | 双重 TS 类型检查（前端 + Functions） |
+| `npm run build`     | 生产构建                             |
+| `npm run deploy`    | 通过 Wrangler 直接部署到 Pages       |
 
 ---
 
 ## API
 
-| 方法     | 路径                            | 鉴权 | 说明                       |
-| -------- | ------------------------------- | ---- | -------------------------- |
-| `GET`    | `/<projectId>/<filename>`       | 否   | 公开读取文件               |
-| `GET`    | `/admin-api/auth-status`        | 否   | 查询是否需要首次设置密码   |
-| `POST`   | `/admin-api/setup`              | 否   | 首次设置管理员密码         |
-| `GET`    | `/admin-api/projects`           | 是   | 获取项目列表               |
-| `POST`   | `/admin-api/projects`           | 是   | 创建项目                   |
-| `DELETE` | `/admin-api/projects/<id>`      | 是   | 删除项目及其文件           |
-| `PUT`    | `/admin-api/project-cors/<id>`  | 是   | 更新项目 JSON 跨域配置     |
-| `GET`    | `/admin-api/files/<id>`         | 是   | 获取项目文件列表           |
-| `POST`   | `/admin-api/files/<id>`         | 是   | 保存文件                   |
-| `DELETE` | `/admin-api/files/<id>`         | 是   | 删除文件                   |
-| `GET`    | `/admin-api/export`             | 是   | 导出全部项目和文件快照     |
-| `POST`   | `/admin-api/import`             | 是   | 导入数据快照（三种模式）   |
+| 方法     | 路径                           | 鉴权 | 说明                     |
+| -------- | ------------------------------ | ---- | ------------------------ |
+| `GET`    | `/<projectId>/<filename>`      | 否   | 公开读取文件             |
+| `GET`    | `/admin-api/auth-status`       | 否   | 查询是否需要首次设置密码 |
+| `POST`   | `/admin-api/setup`             | 否   | 首次设置管理员密码       |
+| `GET`    | `/admin-api/projects`          | 是   | 获取项目列表             |
+| `POST`   | `/admin-api/projects`          | 是   | 创建项目                 |
+| `DELETE` | `/admin-api/projects/<id>`     | 是   | 删除项目及其文件         |
+| `PUT`    | `/admin-api/project-cors/<id>` | 是   | 更新项目 JSON 跨域配置   |
+| `GET`    | `/admin-api/files/<id>`        | 是   | 获取项目文件列表         |
+| `POST`   | `/admin-api/files/<id>`        | 是   | 保存文件                 |
+| `DELETE` | `/admin-api/files/<id>`        | 是   | 删除文件                 |
+| `GET`    | `/admin-api/export`            | 是   | 导出全部项目和文件快照   |
+| `POST`   | `/admin-api/import`            | 是   | 导入数据快照（三种模式） |
 
 保存文件请求示例：
 
